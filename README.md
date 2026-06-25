@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tracker — Job Application Tracker
+
+Track job applications from Handshake, LinkedIn, and Indeed. Discover local jobs with a swipe-based interface.
+
+## Features
+
+- **Dashboard** — Donut or bar chart of application statuses (applied, rejected, interview rounds, offers)
+- **Applications** — Sortable list of all jobs you've applied to
+- **Discover** — Tinder-style card stack to browse jobs in your area
+- **Settings** — Account management and platform connections (Handshake, LinkedIn, Indeed)
+- **Auth** — Sign up / sign in with local persistence
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS
+- Recharts (status charts)
+- Framer Motion (swipe cards)
 
-## Learn More
+## Roadmap
 
-To learn more about Next.js, take a look at the following resources:
+- [ ] Real OAuth for Handshake, LinkedIn, Indeed APIs
+- [ ] PostgreSQL database with user accounts
+- [ ] Location-based job search API integration
+- [ ] Email notifications for status changes
+- [ ] Export applications to CSV
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Note on Integrations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Handshake, LinkedIn, and Indeed require official developer API access for production use. The current "Connect" buttons simulate syncing sample data to demonstrate the UX.
