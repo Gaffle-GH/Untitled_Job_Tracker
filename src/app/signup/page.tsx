@@ -9,7 +9,7 @@ import { Button, Input } from "@/components/ui";
 import { useApp } from "@/lib/store";
 
 export default function SignupPage() {
-  const { signup } = useApp();
+  const { signup, onboardingComplete } = useApp();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -18,7 +18,7 @@ export default function SignupPage() {
     e.preventDefault();
     if (!email || !name) return;
     signup(email, name);
-    router.push("/onboarding");
+    router.push(onboardingComplete ? "/" : "/onboarding");
   };
 
   return (

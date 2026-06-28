@@ -1,8 +1,14 @@
 "use client";
 
+import { useEffect, useMemo, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { ApplicationFiltersSidebar } from "@/components/applications/ApplicationFiltersSidebar";
 import { ApplicationList } from "@/components/applications/ApplicationCard";
+import {
+  APPLICATIONS_PAGE_SIZE,
+  ApplicationPagination,
+} from "@/components/applications/ApplicationPagination";
 import { PageHeader } from "@/components/layout/PageShell";
 import { Button, Select } from "@/components/ui";
 import { useApp } from "@/lib/store";
@@ -16,9 +22,76 @@ const sortOptions: { value: SortField; label: string }[] = [
   { value: "status", label: "Status" },
 ];
 
+function listQueryKey(
+  sortField: SortField,
+  sortDirection: string,
+  selectedSources: string[],
+  selectedStatuses: string[],
+) {
+  return [
+    sortField,
+    sortDirection,
+    [...selectedSources].sort().join(","),
+    [...selectedStatuses].sort().join(","),
+  ].join("|");
+}
+
 export default function ApplicationsPage() {
-  const { sortedApplications, sortField, setSortField, sortDirection, toggleSortDirection } =
-    useApp();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const {
+    sortedApplications,
+    sortField,
+    setSortField,
+    sortDirection,
+    toggleSortDirection,
+    listFilters,
+  } = useApp();
+
+  const queryKey = useMemo(
+    () =>
+      listQueryKey(
+        sortField,
+        sortDirection,
+        listFilters.selectedSources,
+        listFilters.selectedStatuses,
+      ),
+    [sortField, sortDirection, listFilters.selectedSources, listFilters.selectedStatuses],
+  );
+  const prevQueryKey = useRef(queryKey);
+
+  const rawPage = Number.parseInt(searchParams.get("page") ?? "1", 10);
+  const requestedPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+  const totalPages = Math.max(1, Math.ceil(sortedApplications.length / APPLICATIONS_PAGE_SIZE));
+  const currentPage = Math.min(requestedPage, totalPages);
+
+  const pageApplications = useMemo(() => {
+    const start = (currentPage - 1) * APPLICATIONS_PAGE_SIZE;
+    return sortedApplications.slice(start, start + APPLICATIONS_PAGE_SIZE);
+  }, [sortedApplications, currentPage]);
+
+  const setPage = (page: number) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (page <= 1) next.delete("page");
+    else next.set("page", String(page));
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (prevQueryKey.current !== queryKey) {
+      prevQueryKey.current = queryKey;
+      if (requestedPage !== 1) setPage(1);
+      return;
+    }
+
+    if (requestedPage !== currentPage) setPage(currentPage);
+  }, [queryKey, requestedPage, currentPage]);
+
+  const rangeStart =
+    sortedApplications.length === 0 ? 0 : (currentPage - 1) * APPLICATIONS_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * APPLICATIONS_PAGE_SIZE, sortedApplications.length);
 
   return (
     <div className="flex min-h-full flex-col md:flex-row">
@@ -29,7 +102,11 @@ export default function ApplicationsPage() {
           label="Applications"
           accent="yellow"
           title="Your Pipeline"
-          description={`Showing ${sortedApplications.length} application${sortedApplications.length !== 1 ? "s" : ""}`}
+          description={
+            sortedApplications.length === 0
+              ? "No applications match your filters"
+              : `Showing ${rangeStart}–${rangeEnd} of ${sortedApplications.length} application${sortedApplications.length !== 1 ? "s" : ""}`
+          }
         />
 
         <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -46,7 +123,19 @@ export default function ApplicationsPage() {
           </Button>
         </div>
 
-        <ApplicationList applications={sortedApplications} />
+        <ApplicationList
+          applications={pageApplications}
+          layoutApplications={sortedApplications}
+          page={currentPage}
+        />
+
+        <ApplicationPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={sortedApplications.length}
+          pageSize={APPLICATIONS_PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

@@ -56,6 +56,7 @@ export function NearbyJobs() {
                 logoUrl={job.logoUrl}
                 size="lg"
                 rounded="lg"
+                className="shrink-0 border-[3px] border-black brutal-shadow-sm"
               />
               <div className="min-w-0 flex-1">
                 <p className="font-bold leading-tight">{job.title}</p>

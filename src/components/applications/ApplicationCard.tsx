@@ -346,12 +346,21 @@ function listFilterKey(filters: {
   );
 }
 
-export function ApplicationList({ applications }: { applications: JobApplication[] }) {
+export function ApplicationList({
+  applications,
+  layoutApplications,
+  page = 1,
+}: {
+  applications: JobApplication[];
+  layoutApplications?: JobApplication[];
+  page?: number;
+}) {
   const { listFilters, sortField, sortDirection } = useApp();
   const filterKey = useMemo(() => listFilterKey(listFilters), [listFilters]);
-  const listKey = `${filterKey}::${sortField}:${sortDirection}`;
+  const listKey = `${filterKey}::${sortField}:${sortDirection}::p${page}`;
   const boxWidths = useMemo(() => computeColumnBoxWidths(), []);
-  const staticWidths = useMemo(() => computeStaticColumnWidths(applications), [applications]);
+  const layoutSource = layoutApplications ?? applications;
+  const staticWidths = useMemo(() => computeStaticColumnWidths(layoutSource), [layoutSource]);
 
   if (applications.length === 0) {
     return (

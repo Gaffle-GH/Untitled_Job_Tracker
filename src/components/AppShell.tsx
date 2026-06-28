@@ -154,12 +154,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mt-auto shrink-0 border-t-[3px] border-black bg-white p-4">
           {user ? (
             <div className="flex items-center gap-3 border-[3px] border-black bg-white p-3 brutal-shadow-sm">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center border-2 border-black bg-accent-pink">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-black bg-accent-yellow">
                 <User className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold">{user.name}</p>
-                <p className="truncate text-xs">{user.email}</p>
               </div>
               <Button
                 type="button"
