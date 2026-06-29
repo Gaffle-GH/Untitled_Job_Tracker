@@ -102,6 +102,7 @@ interface AppContextValue extends AppState {
   nearbyJobs: ScoredJob[];
   onboardingComplete: boolean;
   completeOnboarding: () => void;
+  hydrated: boolean;
 }
 
 const STARTER_APPLICATIONS = MOCK_APPLICATIONS.filter((app) =>
@@ -116,6 +117,26 @@ const defaultIntegrations: IntegrationConnection[] = [
 
 const AppContext = createContext<AppContextValue | null>(null);
 const STORAGE_KEY = "job-tracker-state";
+const ONBOARDING_STORAGE_KEY = "job-tracker-onboarding-complete";
+
+function readOnboardingComplete() {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(ONBOARDING_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeOnboardingComplete(complete: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (complete) sessionStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+    else sessionStorage.removeItem(ONBOARDING_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 function loadState(): Partial<AppState> {
   if (typeof window === "undefined") return {};
@@ -260,8 +281,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPassedDiscoverIds(passedDiscoverIds);
     }
 
-    if (saved.platformJobs) setPlatformJobs(saved.platformJobs);
-
     if (saved.integrations) setIntegrations(saved.integrations);
     if (saved.chartView) setChartView(saved.chartView);
     if (saved.sortField) setSortField(saved.sortField);
@@ -270,8 +289,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (saved.chartSelection) setChartSelection(saved.chartSelection);
     if (saved.listFilters) setListFilters(saved.listFilters);
     if (saved.profile) setProfile(saved.profile);
-    if (saved.onboardingComplete) setOnboardingComplete(saved.onboardingComplete);
     if (saved.platformJobs) setPlatformJobs(saved.platformJobs);
+    setOnboardingComplete(readOnboardingComplete());
     setHydrated(true);
   }, []);
 
@@ -314,7 +333,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         chartSelection,
         listFilters,
         profile,
-        onboardingComplete,
         platformJobs,
       }),
     );
@@ -332,11 +350,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     chartSelection,
     listFilters,
     profile,
-    onboardingComplete,
     platformJobs,
   ]);
 
-  const completeOnboarding = useCallback(() => setOnboardingComplete(true), []);
+  const completeOnboarding = useCallback(() => {
+    setOnboardingComplete(true);
+    writeOnboardingComplete(true);
+  }, []);
 
   const login = useCallback((email: string, name: string) => {
     setUser({ id: crypto.randomUUID(), email, name });
@@ -561,6 +581,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     profile,
     onboardingComplete,
     completeOnboarding,
+    hydrated,
     login,
     logout,
     signup,
