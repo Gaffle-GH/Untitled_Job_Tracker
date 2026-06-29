@@ -29,12 +29,26 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Roadmap
 
-- [ ] Real OAuth for Handshake, LinkedIn, Indeed APIs
-- [ ] PostgreSQL database with user accounts
+- [x] OAuth linking + sync architecture for Handshake, LinkedIn, Indeed
+- [ ] Production database for tokens and multi-user accounts
 - [ ] Location-based job search API integration
 - [ ] Email notifications for status changes
-- [ ] Export applications to CSV
+- [x] Export applications to Excel / CSV (Google Sheets)
 
 ## Note on Integrations
 
-Handshake, LinkedIn, and Indeed require official developer API access for production use. The current "Connect" buttons simulate syncing sample data to demonstrate the UX.
+Platform linking uses Next.js API routes under `/api/integrations`:
+
+- **Connect** — OAuth (LinkedIn, Indeed) or Handshake EDU API when configured; otherwise **demo mode** with sample data
+- **Sync** — imports your applications into the pipeline and open roles into Discover
+- **Disconnect** — clears the server session and removes synced data for that platform
+
+Copy `.env.example` to `.env.local` and add credentials for live sync:
+
+| Platform | Live access |
+|----------|-------------|
+| Handshake | [EDU API](https://support.joinhandshake.com/hc/en-us/articles/31061076506391) — institution API key + school ID |
+| LinkedIn | [Developer app](https://www.linkedin.com/developers/) + Talent Solutions partner approval for job/application APIs |
+| Indeed | [Partner Console](https://docs.indeed.com/getstarted/partner-console) — Job Sync API partner agreement |
+
+Without credentials, Connect still works in demo mode so you can try the full flow locally.

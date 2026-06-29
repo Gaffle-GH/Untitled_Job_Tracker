@@ -36,6 +36,27 @@ export function PageShell({
   );
 }
 
+export function SectionTitle({
+  children,
+  as: Tag = "h2",
+  className,
+}: {
+  children: React.ReactNode;
+  as?: "h2" | "h3" | "p";
+  className?: string;
+}) {
+  return (
+    <Tag
+      className={clsx(
+        "brutal-label mb-3 inline-block w-fit border-2 border-black bg-white px-2 py-0.5 text-[10px] leading-tight brutal-shadow-sm",
+        className,
+      )}
+    >
+      {children}
+    </Tag>
+  );
+}
+
 export function PageHeader({
   label,
   title,
@@ -59,7 +80,9 @@ export function PageHeader({
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="brutal-label mb-2">{label}</p>
+            <SectionTitle as="p" className="mb-2">
+              {label}
+            </SectionTitle>
             <h1 className="brutal-heading text-2xl md:text-3xl">{title}</h1>
             {description ? (
               <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed">{description}</p>

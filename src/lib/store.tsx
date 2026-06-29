@@ -12,6 +12,12 @@ import {
 import { MOCK_APPLICATIONS, MOCK_DISCOVER_JOBS } from "./mock-data";
 import { shuffleDiscoverJobs } from "./discover";
 import { getNearbyJobsForProfile, type ScoredJob } from "./profile-match";
+import {
+  disconnectIntegration as disconnectIntegrationApi,
+  fetchIntegrationStatuses,
+  startIntegrationConnect,
+  syncIntegration as syncIntegrationApi,
+} from "@/services/integrationsService";
 import type {
   ApplicationStatus,
   ChartSelection,
@@ -20,6 +26,8 @@ import type {
   DashboardStatusGroup,
   DiscoverJob,
   IntegrationConnection,
+  IntegrationMode,
+  IntegrationProvider,
   JobApplication,
   JobSource,
   ListFilters,
@@ -40,6 +48,7 @@ interface AppState {
   user: User | null;
   applications: JobApplication[];
   discoverJobs: DiscoverJob[];
+  platformJobs: DiscoverJob[];
   savedDiscoverIds: string[];
   passedDiscoverIds: string[];
   integrations: IntegrationConnection[];
@@ -67,8 +76,10 @@ interface AppContextValue extends AppState {
   clearChartSelection: () => void;
   setListFilters: (filters: ListFilters) => void;
   resetListFilters: () => void;
-  connectIntegration: (provider: IntegrationConnection["provider"]) => void;
-  disconnectIntegration: (provider: IntegrationConnection["provider"]) => void;
+  connectIntegration: (provider: IntegrationProvider) => void;
+  disconnectIntegration: (provider: IntegrationProvider) => Promise<void>;
+  syncIntegration: (provider: IntegrationProvider) => Promise<void>;
+  integrationBusy: IntegrationProvider | null;
   swipeDiscoverJob: (jobId: string, action: "save" | "pass") => void;
   refreshDiscoverJobs: () => void;
   discoverRefreshKey: number;
@@ -93,6 +104,10 @@ interface AppContextValue extends AppState {
   completeOnboarding: () => void;
 }
 
+const STARTER_APPLICATIONS = MOCK_APPLICATIONS.filter((app) =>
+  ["manual", "discover"].includes(app.source),
+);
+
 const defaultIntegrations: IntegrationConnection[] = [
   { provider: "handshake", connected: false },
   { provider: "linkedin", connected: false },
@@ -114,14 +129,21 @@ function loadState(): Partial<AppState> {
 
 const DISCOVER_JOB_IDS = new Set(MOCK_DISCOVER_JOBS.map((job) => job.id));
 
-function sanitizeDiscoverIds(ids: string[] | undefined) {
-  return (ids ?? []).filter((id) => DISCOVER_JOB_IDS.has(id));
+function discoverIdSet(platformJobs: DiscoverJob[]) {
+  return new Set([...DISCOVER_JOB_IDS, ...platformJobs.map((job) => job.id)]);
 }
 
-function countActiveDiscoverJobs(savedIds: string[], passedIds: string[]) {
-  return MOCK_DISCOVER_JOBS.filter(
-    (job) => !savedIds.includes(job.id) && !passedIds.includes(job.id),
-  ).length;
+function sanitizeDiscoverIds(ids: string[] | undefined, platformJobs: DiscoverJob[]) {
+  const valid = discoverIdSet(platformJobs);
+  return (ids ?? []).filter((id) => valid.has(id));
+}
+
+function countActiveDiscoverJobs(
+  savedIds: string[],
+  passedIds: string[],
+  pool: DiscoverJob[],
+) {
+  return pool.filter((job) => !savedIds.includes(job.id) && !passedIds.includes(job.id)).length;
 }
 
 function resetDiscoverDeck() {
@@ -165,15 +187,45 @@ function filterListApps(apps: JobApplication[], filters: ListFilters) {
   });
 }
 
+function mergeApplications(prev: JobApplication[], incoming: JobApplication[]) {
+  const byId = new Map(prev.map((app) => [app.id, app]));
+  for (const app of incoming) byId.set(app.id, app);
+  return Array.from(byId.values());
+}
+
+function mergePlatformJobs(
+  prev: DiscoverJob[],
+  provider: IntegrationProvider,
+  incoming: DiscoverJob[],
+) {
+  const withoutProvider = prev.filter((job) => job.source !== provider);
+  return [...withoutProvider, ...incoming];
+}
+
+function statusToIntegrationConnection(
+  status: Awaited<ReturnType<typeof fetchIntegrationStatuses>>["integrations"][number],
+): IntegrationConnection {
+  return {
+    provider: status.provider,
+    connected: status.connected,
+    connectedAt: status.connectedAt,
+    email: status.email,
+    mode: status.mode ?? undefined,
+    lastSyncedAt: status.lastSyncedAt,
+  };
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [applications, setApplications] = useState<JobApplication[]>(MOCK_APPLICATIONS);
+  const [applications, setApplications] = useState<JobApplication[]>(STARTER_APPLICATIONS);
+  const [platformJobs, setPlatformJobs] = useState<DiscoverJob[]>([]);
   const [discoverJobs, setDiscoverJobs] = useState<DiscoverJob[]>(MOCK_DISCOVER_JOBS);
   const [savedDiscoverIds, setSavedDiscoverIds] = useState<string[]>([]);
   const [passedDiscoverIds, setPassedDiscoverIds] = useState<string[]>([]);
   const [discoverRefreshKey, setDiscoverRefreshKey] = useState(0);
   const [isRefreshingDiscover, setIsRefreshingDiscover] = useState(false);
   const [integrations, setIntegrations] = useState<IntegrationConnection[]>(defaultIntegrations);
+  const [integrationBusy, setIntegrationBusy] = useState<IntegrationProvider | null>(null);
   const [chartView, setChartView] = useState<ChartView>("donut");
   const [sortField, setSortField] = useState<SortField>("progress");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -194,10 +246,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (saved.user) setUser(saved.user);
     if (saved.applications) setApplications(saved.applications);
 
-    const savedDiscoverIds = sanitizeDiscoverIds(saved.savedDiscoverIds);
-    const passedDiscoverIds = sanitizeDiscoverIds(saved.passedDiscoverIds);
+    const savedPlatformJobs = saved.platformJobs ?? [];
+    const savedDiscoverIds = sanitizeDiscoverIds(saved.savedDiscoverIds, savedPlatformJobs);
+    const passedDiscoverIds = sanitizeDiscoverIds(saved.passedDiscoverIds, savedPlatformJobs);
+    const initialPool = [...MOCK_DISCOVER_JOBS, ...savedPlatformJobs];
 
-    if (countActiveDiscoverJobs(savedDiscoverIds, passedDiscoverIds) === 0) {
+    if (countActiveDiscoverJobs(savedDiscoverIds, passedDiscoverIds, initialPool) === 0) {
       setSavedDiscoverIds([]);
       setPassedDiscoverIds([]);
       setDiscoverJobs(resetDiscoverDeck());
@@ -205,6 +259,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSavedDiscoverIds(savedDiscoverIds);
       setPassedDiscoverIds(passedDiscoverIds);
     }
+
+    if (saved.platformJobs) setPlatformJobs(saved.platformJobs);
 
     if (saved.integrations) setIntegrations(saved.integrations);
     if (saved.chartView) setChartView(saved.chartView);
@@ -215,8 +271,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (saved.listFilters) setListFilters(saved.listFilters);
     if (saved.profile) setProfile(saved.profile);
     if (saved.onboardingComplete) setOnboardingComplete(saved.onboardingComplete);
+    if (saved.platformJobs) setPlatformJobs(saved.platformJobs);
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void fetchIntegrationStatuses()
+      .then(({ integrations: serverIntegrations }) => {
+        setIntegrations((prev) =>
+          prev.map((entry) => {
+            const remote = serverIntegrations.find((item) => item.provider === entry.provider);
+            if (!remote) return entry;
+            return {
+              ...entry,
+              ...statusToIntegrationConnection(remote),
+              applicationCount: entry.applicationCount,
+              availableJobCount: entry.availableJobCount,
+            };
+          }),
+        );
+      })
+      .catch(() => {
+        /* offline or API unavailable — keep local state */
+      });
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -236,6 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         listFilters,
         profile,
         onboardingComplete,
+        platformJobs,
       }),
     );
   }, [
@@ -253,6 +333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     listFilters,
     profile,
     onboardingComplete,
+    platformJobs,
   ]);
 
   const completeOnboarding = useCallback(() => setOnboardingComplete(true), []);
@@ -276,32 +357,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const resetListFilters = useCallback(() => setListFilters(DEFAULT_LIST_FILTERS), []);
 
-  const connectIntegration = useCallback((provider: IntegrationConnection["provider"]) => {
-    setIntegrations((prev) =>
-      prev.map((i) =>
-        i.provider === provider
-          ? { ...i, connected: true, connectedAt: new Date().toISOString(), email: "you@email.com" }
-          : i,
-      ),
-    );
-    setApplications((prev) => {
-      const synced = MOCK_APPLICATIONS.filter((a) => a.source === provider);
-      const existingIds = new Set(prev.map((a) => a.id));
-      const newApps = synced.filter((a) => !existingIds.has(a.id));
-      return newApps.length ? [...prev, ...newApps] : prev;
-    });
+  const applySyncResult = useCallback(
+    (result: Awaited<ReturnType<typeof syncIntegrationApi>>) => {
+      setApplications((prev) => mergeApplications(prev, result.applications));
+      setPlatformJobs((prev) => mergePlatformJobs(prev, result.provider, result.availableJobs));
+      setIntegrations((prev) =>
+        prev.map((entry) =>
+          entry.provider === result.provider
+            ? {
+                ...entry,
+                connected: true,
+                mode: result.mode as IntegrationMode,
+                email: result.email ?? entry.email,
+                lastSyncedAt: result.syncedAt,
+                applicationCount: result.applications.length,
+                availableJobCount: result.availableJobs.length,
+              }
+            : entry,
+        ),
+      );
+    },
+    [],
+  );
+
+  const connectIntegration = useCallback((provider: IntegrationProvider) => {
+    startIntegrationConnect(provider);
   }, []);
 
-  const disconnectIntegration = useCallback((provider: IntegrationConnection["provider"]) => {
-    setIntegrations((prev) =>
-      prev.map((i) => (i.provider === provider ? { provider, connected: false } : i)),
-    );
+  const syncIntegration = useCallback(
+    async (provider: IntegrationProvider) => {
+      setIntegrationBusy(provider);
+      try {
+        const result = await syncIntegrationApi(provider);
+        applySyncResult(result);
+      } finally {
+        setIntegrationBusy(null);
+      }
+    },
+    [applySyncResult],
+  );
+
+  const disconnectIntegration = useCallback(async (provider: IntegrationProvider) => {
+    setIntegrationBusy(provider);
+    try {
+      await disconnectIntegrationApi(provider);
+      setIntegrations((prev) =>
+        prev.map((entry) =>
+          entry.provider === provider ? { provider, connected: false } : entry,
+        ),
+      );
+      setPlatformJobs((prev) => prev.filter((job) => job.source !== provider));
+      setApplications((prev) => prev.filter((app) => app.source !== provider));
+    } finally {
+      setIntegrationBusy(null);
+    }
   }, []);
 
   const swipeDiscoverJob = useCallback((jobId: string, action: "save" | "pass") => {
     if (action === "save") {
       setSavedDiscoverIds((prev) => (prev.includes(jobId) ? prev : [...prev, jobId]));
-      const job = MOCK_DISCOVER_JOBS.find((j) => j.id === jobId);
+      const job = [...MOCK_DISCOVER_JOBS, ...platformJobs].find((entry) => entry.id === jobId);
       if (job) {
         setApplications((prev) => [
           {
@@ -309,7 +424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             company: job.company,
             title: job.title,
             location: job.location,
-            source: "discover",
+            source: job.source ?? "discover",
             status: "applied",
             appliedAt: new Date().toISOString().split("T")[0],
             salary: job.salary,
@@ -323,7 +438,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       setPassedDiscoverIds((prev) => (prev.includes(jobId) ? prev : [...prev, jobId]));
     }
-  }, []);
+  }, [platformJobs]);
 
   const refreshDiscoverJobs = useCallback(() => {
     setIsRefreshingDiscover(true);
@@ -411,12 +526,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [dashboardApplications]);
 
+  const discoverPool = useMemo(
+    () => [...MOCK_DISCOVER_JOBS, ...platformJobs],
+    [platformJobs],
+  );
+
   const activeDiscoverJobs = useMemo(
     () =>
-      discoverJobs.filter(
-        (j) => !savedDiscoverIds.includes(j.id) && !passedDiscoverIds.includes(j.id),
+      discoverPool.filter(
+        (job) => !savedDiscoverIds.includes(job.id) && !passedDiscoverIds.includes(job.id),
       ),
-    [discoverJobs, savedDiscoverIds, passedDiscoverIds],
+    [discoverPool, savedDiscoverIds, passedDiscoverIds],
   );
 
   const nearbyJobs = useMemo(
@@ -427,6 +547,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextValue = {
     user,
     applications,
+    platformJobs,
     discoverJobs: activeDiscoverJobs,
     savedDiscoverIds,
     passedDiscoverIds,
@@ -455,6 +576,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     resetListFilters,
     connectIntegration,
     disconnectIntegration,
+    syncIntegration,
+    integrationBusy,
     swipeDiscoverJob,
     refreshDiscoverJobs,
     discoverRefreshKey,

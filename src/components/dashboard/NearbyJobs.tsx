@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, MapPin, Sparkles } from "lucide-react";
+import { ArrowRight, ExternalLink, MapPin, Sparkles } from "lucide-react";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { PopItem, PopPress, PopStagger, PopIn } from "@/components/motion/Pop";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -74,8 +74,23 @@ export function NearbyJobs() {
                   ))}
                 </div>
               </div>
-              {job.salary && (
-                <p className="shrink-0 text-right text-xs font-bold">{job.salary}</p>
+              {(job.salary || job.url) && (
+                <div className="flex shrink-0 flex-col items-end self-stretch">
+                  {job.salary ? (
+                    <p className="text-right text-xs font-bold">{job.salary}</p>
+                  ) : null}
+                  {job.url ? (
+                    <a
+                      href={job.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-auto inline-flex h-8 items-center justify-center gap-1 border-[3px] border-black bg-white px-3 text-xs font-bold uppercase tracking-wide brutal-shadow-sm transition-colors hover:bg-accent-cyan/30"
+                    >
+                      View
+                      <ExternalLink className="h-3 w-3" aria-hidden />
+                    </a>
+                  ) : null}
+                </div>
               )}
                 </PopPress>
               </PopItem>

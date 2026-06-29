@@ -1,7 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
+import { ExportSettings } from "@/components/settings/ExportSettings";
 import { IntegrationSettings } from "@/components/IntegrationSettings";
-import { PageHeader, PageShell } from "@/components/layout/PageShell";
+import { IntegrationSyncHandler } from "@/components/IntegrationSyncHandler";
+import { PageHeader, PageShell, SectionTitle } from "@/components/layout/PageShell";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { Card, CardContent } from "@/components/ui";
 import { useApp } from "@/lib/store";
@@ -13,16 +16,19 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full">
+      <Suspense fallback={null}>
+        <IntegrationSyncHandler />
+      </Suspense>
       <PageShell>
         <PageHeader
           label="Settings"
           accent="purple"
           title="Your Setup"
-          description="Account, profile & platform connections"
+          description="Account, profile, exports & platform connections"
         />
 
         <section className="mb-10">
-          <h2 className="brutal-label mb-4">Account</h2>
+          <SectionTitle>Account</SectionTitle>
           {user ? (
             <Card accent="cyan" className="gap-0">
               <CardContent className="flex items-center gap-4 !p-5">
@@ -50,12 +56,17 @@ export default function SettingsPage() {
         </section>
 
         <section className="mb-10">
-          <h2 className="brutal-label mb-4">Job Profile</h2>
+          <SectionTitle>Job Profile</SectionTitle>
           <ProfileSettings />
         </section>
 
+        <section className="mb-10">
+          <SectionTitle>Exporting</SectionTitle>
+          <ExportSettings />
+        </section>
+
         <section>
-          <h2 className="brutal-label mb-4">Connected Platforms</h2>
+          <SectionTitle>Connected Platforms</SectionTitle>
           <IntegrationSettings />
         </section>
       </PageShell>

@@ -110,7 +110,7 @@ export function Button({
   style,
   ...props
 }: Omit<React.ComponentPropsWithoutRef<typeof motion.button>, "children"> & {
-  variant?: "default" | "outline" | "ghost" | "lime" | "pink";
+  variant?: "default" | "outline" | "ghost" | "lime" | "pink" | "cyan" | "yellow";
   size?: "default" | "sm" | "icon";
   pop?: boolean;
   children?: React.ReactNode;
@@ -146,6 +146,8 @@ export function Button({
         variant === "ghost" && "border-transparent bg-transparent shadow-none hover:bg-black/5",
         variant === "lime" && "bg-accent-lime text-black",
         variant === "pink" && "bg-accent-pink text-black",
+        variant === "cyan" && "bg-accent-cyan text-black",
+        variant === "yellow" && "bg-accent-yellow text-black",
         !usePopShadow && variant !== "ghost" && "brutal-shadow-sm",
         size === "default" && "h-10 px-4 py-2 text-sm",
         size === "sm" && "h-8 px-3 text-xs",

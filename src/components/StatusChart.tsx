@@ -6,6 +6,7 @@ import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis
 import { BarChart3, PieChart as PieChartIcon } from "lucide-react";
 import clsx from "clsx";
 import { Card, CardContent, CardHeader, CardTitle, Button } from "@/components/ui";
+import { chartTooltipProps } from "@/components/dashboard/ChartCursorTooltip";
 import { useApp } from "@/lib/store";
 import {
   DASHBOARD_STATUS_GROUP_ORDER,
@@ -15,14 +16,6 @@ import {
   getStatusesForGroup,
   type DashboardStatusGroup,
 } from "@/lib/types";
-
-const brutalTooltip = {
-  backgroundColor: "var(--background)",
-  border: "3px solid #000",
-  borderRadius: 0,
-  boxShadow: "4px 4px 0 0 #000",
-  fontWeight: 700,
-};
 
 export function StatusChart() {
   const { applications, statusGroupCounts, chartView, setChartView, setListFilters } = useApp();
@@ -101,8 +94,9 @@ export function StatusChart() {
           </div>
         ) : chartView === "donut" ? (
           <div className="flex flex-col items-center gap-8 lg:flex-row">
-            <div className="relative mx-auto h-[280px] w-full min-w-[240px] max-w-sm">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="relative z-50 mx-auto w-full min-w-[240px] max-w-sm border-[3px] border-black bg-white brutal-shadow-sm">
+              <div className="relative h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={data}
@@ -124,13 +118,7 @@ export function StatusChart() {
                       <Cell key={entry.group} fill={entry.color} style={{ cursor: "pointer" }} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    formatter={(value, _name, props) => [
-                      value,
-                      (props.payload as { description?: string }).description ?? "Applications",
-                    ]}
-                    contentStyle={brutalTooltip}
-                  />
+                  <Tooltip {...chartTooltipProps} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -138,6 +126,7 @@ export function StatusChart() {
                   <span className="text-2xl font-extrabold tabular-nums leading-none">{total}</span>
                   <span className="text-[10px] font-bold uppercase tracking-widest leading-none">Total</span>
                 </div>
+              </div>
               </div>
             </div>
 
@@ -174,7 +163,7 @@ export function StatusChart() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="overflow-hidden border-[3px] border-black bg-white brutal-shadow-sm">
+            <div className="relative z-50 border-[3px] border-black bg-white brutal-shadow-sm">
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -194,13 +183,7 @@ export function StatusChart() {
                       axisLine={{ stroke: "#000", strokeWidth: 2 }}
                       tickLine={false}
                     />
-                    <Tooltip
-                      formatter={(value, _name, props) => [
-                        value,
-                        (props.payload as { description?: string }).description ?? "Applications",
-                      ]}
-                      contentStyle={brutalTooltip}
-                    />
+                    <Tooltip {...chartTooltipProps} shared={false} />
                     <Bar dataKey="count" radius={0}>
                       {data.map((entry) => (
                         <Cell

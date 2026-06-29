@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { SectionTitle } from "@/components/layout/PageShell";
 import { Badge, Button, Checkbox, Separator } from "@/components/ui";
 import { useApp } from "@/lib/store";
 import {
@@ -57,7 +58,9 @@ export function ApplicationFiltersSidebar() {
       <Separator />
 
       <div className="space-y-4">
-        <h3 className="brutal-label">Quick Select</h3>
+        <SectionTitle as="h3" className="mb-0">
+          Quick Select
+        </SectionTitle>
         <div className="grid grid-cols-2 gap-2">
           {STATUS_QUICK_FILTERS.map((filter) => {
             const active = statusesMatch(filter.statuses, listFilters.selectedStatuses);
@@ -82,7 +85,9 @@ export function ApplicationFiltersSidebar() {
       <Separator />
 
       <div className="space-y-4">
-        <h3 className="brutal-label">Application Sources</h3>
+        <SectionTitle as="h3" className="mb-0">
+          Application Sources
+        </SectionTitle>
         <div className="space-y-3">
           {sourceCounts.map(({ source, count }) => (
             <div key={source} className="flex items-center space-x-3">
@@ -108,7 +113,9 @@ export function ApplicationFiltersSidebar() {
       <Separator />
 
       <div className="space-y-4">
-        <h3 className="brutal-label">Status</h3>
+        <SectionTitle as="h3" className="mb-0">
+          Status
+        </SectionTitle>
         <div className="space-y-3">
           {(Object.keys(STATUS_LABELS) as ApplicationStatus[]).map((status) => (
             <div key={status} className="flex items-center space-x-3">

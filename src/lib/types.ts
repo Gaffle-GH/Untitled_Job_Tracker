@@ -43,15 +43,23 @@ export interface DiscoverJob {
   url?: string;
   companyDomain?: string;
   logoUrl?: string;
+  /** Platform this listing was synced from */
+  source?: IntegrationProvider;
 }
 
 export type IntegrationProvider = "handshake" | "linkedin" | "indeed";
+
+export type IntegrationMode = "demo" | "live";
 
 export interface IntegrationConnection {
   provider: IntegrationProvider;
   connected: boolean;
   connectedAt?: string;
   email?: string;
+  mode?: IntegrationMode;
+  lastSyncedAt?: string;
+  applicationCount?: number;
+  availableJobCount?: number;
 }
 
 export interface User {

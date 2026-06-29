@@ -11,7 +11,7 @@ export default function DiscoverPage() {
           label="Discover"
           accent="pink"
           title="Swipe Jobs"
-          description="Right to save · Left to pass"
+          description="Right to save · Left to pass · Includes jobs from connected platforms"
         />
 
         <CardStack />
