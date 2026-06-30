@@ -46,10 +46,10 @@ export function NearbyJobs() {
             {nearbyJobs.map(({ job, matchReasons }) => (
               <PopItem key={job.id}>
                 <PopPress
-                  className="flex flex-col gap-3 border-[3px] border-black bg-white p-4 sm:flex-row sm:gap-4"
+                  className="flex flex-col gap-3 border-[3px] border-black bg-white p-4 sm:flex-row sm:items-stretch sm:gap-4"
                   shadow="2px 2px 0 0 #000000"
                 >
-              <div className="flex gap-3 sm:gap-4">
+              <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
               <CompanyLogo
                 company={job.company}
                 url={job.url}
