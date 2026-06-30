@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus } from "lucide-react";
+import { AddApplicationModal } from "@/components/applications/AddApplicationModal";
 import { ApplicationFiltersSidebar } from "@/components/applications/ApplicationFiltersSidebar";
 import { ApplicationList } from "@/components/applications/ApplicationCard";
 import {
@@ -40,6 +41,7 @@ export default function ApplicationsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [addOpen, setAddOpen] = useState(false);
   const {
     sortedApplications,
     sortField,
@@ -97,7 +99,7 @@ export default function ApplicationsPage() {
     <div className="flex min-h-full flex-col md:flex-row">
       <ApplicationFiltersSidebar />
 
-      <div className="min-w-0 flex-1 px-4 pb-24 pt-4 md:px-8 md:pb-8">
+      <div className="min-w-0 flex-1 px-4 pb-mobile-nav pt-4 md:px-8 md:pb-8">
         <PageHeader
           label="Applications"
           accent="yellow"
@@ -106,6 +108,12 @@ export default function ApplicationsPage() {
             sortedApplications.length === 0
               ? "No applications match your filters"
               : `Showing ${rangeStart}–${rangeEnd} of ${sortedApplications.length} application${sortedApplications.length !== 1 ? "s" : ""}`
+          }
+          action={
+            <Button variant="lime" size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
           }
         />
 
@@ -137,6 +145,8 @@ export default function ApplicationsPage() {
           onPageChange={setPage}
         />
       </div>
+
+      <AddApplicationModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );
 }

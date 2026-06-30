@@ -4,7 +4,8 @@ import { Card, CardContent, Input } from "@/components/ui";
 import { useApp } from "@/lib/store";
 
 export function ProfileSettings() {
-  const { profile, setProfile } = useApp();
+  const { profile, setProfile, databaseMode, notifyOnStatusChange, setNotifyOnStatusChange } =
+    useApp();
 
   return (
     <Card className="gap-0">
@@ -47,8 +48,20 @@ export function ProfileSettings() {
           />
           <span className="text-sm font-bold uppercase">Open to remote roles</span>
         </label>
+        {databaseMode ? (
+          <label className="flex items-center gap-3 border-[3px] border-black bg-accent-yellow/40 p-3">
+            <input
+              type="checkbox"
+              checked={notifyOnStatusChange}
+              onChange={(e) => setNotifyOnStatusChange(e.target.checked)}
+              className="h-5 w-5 border-2 border-black accent-black"
+            />
+            <span className="text-sm font-bold uppercase">Email me on status changes</span>
+          </label>
+        ) : null}
         <p className="text-xs font-medium">
-          Used to rank nearby jobs on your Dashboard and in Discover.
+          Location is geocoded for nearby job search. Used to rank jobs on your Dashboard and in
+          Discover.
         </p>
       </CardContent>
     </Card>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { StatusChart } from "@/components/StatusChart";
+import { KpiCards } from "@/components/dashboard/KpiCards";
 import { NearbyJobs } from "@/components/dashboard/NearbyJobs";
 import { PageHeader, PageShell } from "@/components/layout/PageShell";
 import { PopBadge, PopIn, PopStagger } from "@/components/motion/Pop";
@@ -38,9 +39,12 @@ export default function DashboardPage() {
 
         <PopStagger className="space-y-8">
           <PopIn className="w-full" delay={0}>
+            <KpiCards />
+          </PopIn>
+          <PopIn className="w-full" delay={0.05}>
             <StatusChart />
           </PopIn>
-          <PopIn className="w-full" delay={0.07}>
+          <PopIn className="w-full" delay={0.1}>
             <NearbyJobs />
           </PopIn>
           <PopIn delay={0.14}>

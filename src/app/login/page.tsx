@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Briefcase } from "lucide-react";
 import { APP_NAME } from "@/lib/brand";
 import { PopIn } from "@/components/motion/Pop";
+import { AuthErrorBox, loginCredentialsError, loginErrorFromMessage } from "@/components/auth/AuthErrorBox";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/lib/store";
 
@@ -13,13 +14,30 @@ export default function LoginPage() {
   const { login, onboardingComplete } = useApp();
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<{ title: string; message: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !name) return;
-    login(email, name);
-    router.push(onboardingComplete ? "/" : "/onboarding");
+    if (!email || !password) return;
+    setError(null);
+
+    if (password.length < 6) {
+      setError(loginCredentialsError());
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await login(email, password);
+      router.push(onboardingComplete ? "/" : "/onboarding");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Sign in failed";
+      setError(loginErrorFromMessage(message));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -34,19 +52,39 @@ export default function LoginPage() {
         </div>
 
         <form
-          onSubmit={handleSubmit}
+          onSubmit={(e) => void handleSubmit(e)}
+          noValidate
           className="border-[3px] border-black bg-white p-6 brutal-shadow-lg"
         >
           <label className="mb-4 block">
-            <span className="brutal-label mb-2 block">Name</span>
-            <Input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" required />
+            <span className="brutal-label mb-2 block">Email</span>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="you@email.com"
+              required
+            />
           </label>
           <label className="mb-6 block">
-            <span className="brutal-label mb-2 block">Email</span>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" required />
+            <span className="brutal-label mb-2 block">Password</span>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="••••••••"
+              required
+            />
           </label>
-          <Button type="submit" className="w-full">
-            Sign in
+          {error ? <AuthErrorBox title={error.title} message={error.message} /> : null}
+          <Button type="submit" className="w-full" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
           </Button>
         </form>
 

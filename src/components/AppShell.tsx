@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -102,6 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useApp();
   const reduceMotion = useReducedMotion();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
   const isOnboarding = pathname === "/onboarding";
@@ -165,7 +167,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 variant="outline"
                 size="icon"
                 pop={false}
-                onClick={logout}
+                onClick={() => void logout()}
                 className="h-8 w-8 shrink-0 border-2 hover:bg-accent-yellow"
                 title="Sign out"
               >
@@ -191,7 +193,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <span className="brutal-heading text-lg">{APP_NAME}</span>
           </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="flex h-9 w-9 items-center justify-center border-2 border-black bg-white brutal-shadow-sm"
+            aria-expanded={mobileMenuOpen}
+            aria-label="Account menu"
+          >
+            <User className="h-4 w-4" />
+          </button>
         </header>
+
+        {mobileMenuOpen ? (
+          <div className="border-b-[3px] border-black bg-white px-4 py-3 md:hidden">
+            {user ? (
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{user.name}</p>
+                  <p className="truncate text-xs font-medium text-black/55">{user.email}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  pop={false}
+                  onClick={() => void logout()}
+                  className="gap-1"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Out
+                </Button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block border-2 border-black bg-black px-4 py-2 text-center text-sm font-bold uppercase text-white"
+              >
+                Sign in
+              </Link>
+            )}
+          </div>
+        ) : null}
 
         <main
           className={clsx(
@@ -202,7 +245,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
 
-        <nav className="flex border-t-[3px] border-black bg-white md:hidden">
+        <nav className="mobile-bottom-bar flex border-t-[3px] border-black bg-white md:hidden">
           {navItems.map(({ href, label, icon: Icon, color }) => {
             const active = pathname === href;
             return (

@@ -18,6 +18,15 @@ import {
   startIntegrationConnect,
   syncIntegration as syncIntegrationApi,
 } from "@/services/integrationsService";
+import {
+  fetchMe,
+  loginWithApi,
+  logoutWithApi,
+  patchApplicationStatus,
+  saveProfileApi,
+  searchJobsApi,
+  signupWithApi,
+} from "@/services/authService";
 import type {
   ApplicationStatus,
   ChartSelection,
@@ -63,9 +72,12 @@ interface AppState {
 }
 
 interface AppContextValue extends AppState {
-  login: (email: string, name: string) => void;
-  logout: () => void;
-  signup: (email: string, name: string) => void;
+  databaseMode: boolean;
+  notifyOnStatusChange: boolean;
+  setNotifyOnStatusChange: (value: boolean) => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  signup: (email: string, name: string, password: string) => Promise<void>;
   setProfile: (profile: UserProfile) => void;
   setChartView: (view: ChartView) => void;
   setSortField: (field: SortField) => void;
@@ -81,11 +93,16 @@ interface AppContextValue extends AppState {
   syncIntegration: (provider: IntegrationProvider) => Promise<void>;
   integrationBusy: IntegrationProvider | null;
   swipeDiscoverJob: (jobId: string, action: "save" | "pass") => void;
+  undoDiscoverSwipe: () => void;
+  canUndoDiscover: boolean;
   refreshDiscoverJobs: () => void;
   discoverRefreshKey: number;
   isRefreshingDiscover: boolean;
   addApplication: (job: Omit<JobApplication, "id">) => void;
-  updateApplicationStatus: (id: string, status: JobApplication["status"]) => void;
+  updateApplicationStatus: (
+    id: string,
+    status: JobApplication["status"],
+  ) => Promise<void>;
   dashboardApplications: JobApplication[];
   sortedApplications: JobApplication[];
   filteredApplications: JobApplication[];
@@ -260,6 +277,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [listFilters, setListFilters] = useState<ListFilters>(DEFAULT_LIST_FILTERS);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [databaseMode, setDatabaseMode] = useState(false);
+  const [notifyOnStatusChange, setNotifyOnStatusChange] = useState(true);
+  const [lastDiscoverSwipe, setLastDiscoverSwipe] = useState<{
+    jobId: string;
+    action: "save" | "pass";
+    applicationId?: string;
+  } | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -291,7 +315,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (saved.profile) setProfile(saved.profile);
     if (saved.platformJobs) setPlatformJobs(saved.platformJobs);
     setOnboardingComplete(readOnboardingComplete());
-    setHydrated(true);
+
+    void fetchMe()
+      .then((me) => {
+        if (!me.database) return;
+        setDatabaseMode(true);
+        if (me.user) {
+          setUser(me.user);
+          if (me.user.notifyOnStatusChange !== undefined) {
+            setNotifyOnStatusChange(me.user.notifyOnStatusChange);
+          }
+          if (me.profile) setProfile(me.profile);
+          if (me.applications) setApplications(me.applications);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setHydrated(true));
   }, []);
 
   useEffect(() => {
@@ -317,7 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [hydrated]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || databaseMode) return;
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -338,6 +377,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [
     hydrated,
+    databaseMode,
     user,
     applications,
     savedDiscoverIds,
@@ -358,15 +398,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     writeOnboardingComplete(true);
   }, []);
 
-  const login = useCallback((email: string, name: string) => {
-    setUser({ id: crypto.randomUUID(), email, name });
+  const login = useCallback(async (email: string, password: string) => {
+    const result = await loginWithApi(email, password);
+    setDatabaseMode(true);
+    setUser(result.user);
+    setProfile(result.profile);
+    setApplications(result.applications);
+    setNotifyOnStatusChange(result.user.notifyOnStatusChange);
   }, []);
 
-  const signup = useCallback((email: string, name: string) => {
-    setUser({ id: crypto.randomUUID(), email, name });
+  const signup = useCallback(async (email: string, name: string, password: string) => {
+    const result = await signupWithApi(email, name, password);
+    setDatabaseMode(true);
+    setUser(result.user);
+    setProfile(result.profile);
+    setApplications(result.applications);
+    setNotifyOnStatusChange(true);
   }, []);
 
-  const logout = useCallback(() => setUser(null), []);
+  const logout = useCallback(async () => {
+    if (databaseMode) {
+      await logoutWithApi();
+    }
+    setUser(null);
+  }, [databaseMode]);
+
+  const setProfileState = useCallback(
+    (next: UserProfile) => {
+      setProfile(next);
+      if (databaseMode && user) {
+        void saveProfileApi(next, notifyOnStatusChange).catch(() => undefined);
+      }
+    },
+    [databaseMode, user, notifyOnStatusChange],
+  );
+
+  const setNotifyOnStatusChangeState = useCallback(
+    (value: boolean) => {
+      setNotifyOnStatusChange(value);
+      if (databaseMode && user) {
+        void saveProfileApi(profile, value).catch(() => undefined);
+      }
+    },
+    [databaseMode, user, profile],
+  );
   const toggleSortDirection = useCallback(
     () => setSortDirection((d) => (d === "asc" ? "desc" : "asc")),
     [],
@@ -433,14 +508,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const discoverPool = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: DiscoverJob[] = [];
+    for (const job of [...discoverJobs, ...platformJobs]) {
+      if (seen.has(job.id)) continue;
+      seen.add(job.id);
+      merged.push(job);
+    }
+    return merged;
+  }, [discoverJobs, platformJobs]);
+
   const swipeDiscoverJob = useCallback((jobId: string, action: "save" | "pass") => {
     if (action === "save") {
       setSavedDiscoverIds((prev) => (prev.includes(jobId) ? prev : [...prev, jobId]));
-      const job = [...MOCK_DISCOVER_JOBS, ...platformJobs].find((entry) => entry.id === jobId);
+      const job = discoverPool.find((entry) => entry.id === jobId);
       if (job) {
+        const applicationId = crypto.randomUUID();
         setApplications((prev) => [
           {
-            id: crypto.randomUUID(),
+            id: applicationId,
             company: job.company,
             title: job.title,
             location: job.location,
@@ -454,28 +541,77 @@ export function AppProvider({ children }: { children: ReactNode }) {
           },
           ...prev,
         ]);
+        setLastDiscoverSwipe({ jobId, action, applicationId });
+        return;
       }
     } else {
       setPassedDiscoverIds((prev) => (prev.includes(jobId) ? prev : [...prev, jobId]));
     }
-  }, [platformJobs]);
+    setLastDiscoverSwipe({ jobId, action });
+  }, [discoverPool]);
+
+  const undoDiscoverSwipe = useCallback(() => {
+    if (!lastDiscoverSwipe) return;
+    const { jobId, action, applicationId } = lastDiscoverSwipe;
+    if (action === "save") {
+      setSavedDiscoverIds((prev) => prev.filter((id) => id !== jobId));
+      if (applicationId) {
+        setApplications((prev) => prev.filter((app) => app.id !== applicationId));
+      }
+    } else {
+      setPassedDiscoverIds((prev) => prev.filter((id) => id !== jobId));
+    }
+    setLastDiscoverSwipe(null);
+  }, [lastDiscoverSwipe]);
 
   const refreshDiscoverJobs = useCallback(() => {
     setIsRefreshingDiscover(true);
     setSavedDiscoverIds([]);
     setPassedDiscoverIds([]);
-    setDiscoverJobs(resetDiscoverDeck());
-    setDiscoverRefreshKey((key) => key + 1);
-    window.setTimeout(() => setIsRefreshingDiscover(false), 500);
-  }, []);
+    setLastDiscoverSwipe(null);
+
+    void searchJobsApi({
+      location: profile.location,
+      query: profile.rolePreference,
+      radius: 25,
+    })
+      .then((result) => {
+        const jobs =
+          result.jobs.length > 0 ? shuffleDiscoverJobs(result.jobs) : resetDiscoverDeck();
+        setDiscoverJobs(jobs);
+        if (result.geocoded) {
+          setProfile((prev) => ({
+            ...prev,
+            latitude: result.geocoded!.latitude,
+            longitude: result.geocoded!.longitude,
+          }));
+        }
+        setDiscoverRefreshKey((key) => key + 1);
+      })
+      .catch(() => {
+        setDiscoverJobs(resetDiscoverDeck());
+        setDiscoverRefreshKey((key) => key + 1);
+      })
+      .finally(() => {
+        window.setTimeout(() => setIsRefreshingDiscover(false), 500);
+      });
+  }, [profile.location, profile.rolePreference]);
 
   const addApplication = useCallback((job: Omit<JobApplication, "id">) => {
     setApplications((prev) => [{ ...job, id: crypto.randomUUID() }, ...prev]);
   }, []);
 
-  const updateApplicationStatus = useCallback((id: string, status: JobApplication["status"]) => {
-    setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
-  }, []);
+  const updateApplicationStatus = useCallback(
+    async (id: string, status: JobApplication["status"]) => {
+      if (databaseMode && user) {
+        const updated = await patchApplicationStatus(id, status);
+        setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)));
+        return;
+      }
+      setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+    },
+    [databaseMode, user],
+  );
 
   const dashboardApplications = useMemo(
     () => filterDashboardApps(applications, dashboardFilters, chartSelection),
@@ -546,11 +682,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [dashboardApplications]);
 
-  const discoverPool = useMemo(
-    () => [...MOCK_DISCOVER_JOBS, ...platformJobs],
-    [platformJobs],
-  );
-
   const activeDiscoverJobs = useMemo(
     () =>
       discoverPool.filter(
@@ -582,10 +713,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     onboardingComplete,
     completeOnboarding,
     hydrated,
+    databaseMode,
+    notifyOnStatusChange,
+    setNotifyOnStatusChange: setNotifyOnStatusChangeState,
     login,
     logout,
     signup,
-    setProfile,
+    setProfile: setProfileState,
     setChartView,
     setSortField,
     setSortDirection,
@@ -600,6 +734,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     syncIntegration,
     integrationBusy,
     swipeDiscoverJob,
+    undoDiscoverSwipe,
+    canUndoDiscover: lastDiscoverSwipe !== null,
     refreshDiscoverJobs,
     discoverRefreshKey,
     isRefreshingDiscover,

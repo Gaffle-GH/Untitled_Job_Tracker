@@ -73,6 +73,8 @@ export interface UserProfile {
   rolePreference: string;
   skills: string[];
   openToRemote: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 export const DEFAULT_USER_PROFILE: UserProfile = {

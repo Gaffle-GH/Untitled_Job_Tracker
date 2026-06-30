@@ -35,7 +35,10 @@ export function scoreJobForProfile(job: DiscoverJob, profile: UserProfile): Scor
   }
 
   const profileCity = locationLower.split(",")[0]?.trim();
-  if (profileCity && jobLocationLower.includes(profileCity)) {
+  if (profile.latitude != null && profile.longitude != null && job.location) {
+    score += 8;
+    if (!matchReasons.includes("Location search")) matchReasons.push("Location search");
+  } else if (profileCity && jobLocationLower.includes(profileCity)) {
     score += 15;
     if (!matchReasons.includes("Near you")) matchReasons.push("Near you");
   } else if (job.remote) {

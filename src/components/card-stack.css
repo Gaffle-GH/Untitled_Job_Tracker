@@ -53,7 +53,7 @@
 }
 
 .card-exit-overlay {
-  z-index: 10;
+  z-index: 20;
   pointer-events: none;
 }
 
@@ -316,10 +316,18 @@
 @media (max-width: 640px) {
   .content-container {
     width: min(100%, 323px);
+    height: min(528px, calc(100dvh - 18rem));
+    padding-top: 28px;
   }
 
   .card {
     width: min(100%, 323px);
     margin-left: calc(min(100%, 323px) / -2);
+    height: min(484px, calc(100dvh - 20rem));
+    top: 28px;
+  }
+
+  .card-panel {
+    font-size: 0.95em;
   }
 }

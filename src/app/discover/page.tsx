@@ -6,7 +6,7 @@ import { PageHeader, PageShell } from "@/components/layout/PageShell";
 export default function DiscoverPage() {
   return (
     <div className="discover-scene">
-      <PageShell className="flex flex-col items-center pb-28">
+      <PageShell className="flex flex-col items-center">
         <PageHeader
           label="Discover"
           accent="pink"
@@ -16,7 +16,7 @@ export default function DiscoverPage() {
 
         <CardStack />
 
-        <p className="discover-scene-hint">← Pass · Save →</p>
+        <p className="discover-scene-hint hidden md:block">← Pass · Save →</p>
       </PageShell>
     </div>
   );

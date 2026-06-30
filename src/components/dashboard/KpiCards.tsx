@@ -1,110 +1,73 @@
 "use client";
 
-import { Briefcase, DollarSign, TrendingUp, Users, XCircle } from "lucide-react";
-import { Card, CardContent } from "@/components/ui";
+import { Briefcase, DollarSign, TrendingUp, Users } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { POP_IN_SPRING } from "@/lib/motion-presets";
 import { useApp } from "@/lib/store";
-import {
-  SOURCE_LABELS,
-  STATUS_LABELS,
-  type ApplicationStatus,
-  type JobSource,
-} from "@/lib/types";
+
+const ACCENTS = ["bg-accent-cyan", "bg-accent-pink", "bg-accent-lime", "bg-accent-yellow"] as const;
 
 const stats = [
   {
-    key: "total",
+    key: "total" as const,
     label: "Total Applications",
     icon: Briefcase,
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-600",
     format: (v: number) => String(v),
     sub: () => "Current selection",
   },
   {
-    key: "interview",
+    key: "interview" as const,
     label: "In Interview",
     icon: Users,
-    iconBg: "bg-purple-100",
-    iconColor: "text-purple-600",
     format: (v: number) => String(v),
     sub: () => "Active pipeline",
   },
   {
-    key: "offers",
+    key: "offers" as const,
     label: "Offers",
     icon: DollarSign,
-    iconBg: "bg-green-100",
-    iconColor: "text-green-600",
     format: (v: number) => String(v),
     sub: () => "Offer & accepted",
   },
   {
-    key: "responseRate",
+    key: "responseRate" as const,
     label: "Response Rate",
     icon: TrendingUp,
-    iconBg: "bg-orange-100",
-    iconColor: "text-orange-600",
     format: (v: number) => `${v.toFixed(1)}%`,
-    sub: (stats: { rejected: number }) => `${stats.rejected} rejected`,
+    sub: (s: { rejected: number }) => `${s.rejected} rejected`,
   },
-] as const;
+];
 
 export function KpiCards() {
   const { dashboardStats } = useApp();
+  const reduceMotion = useReducedMotion();
 
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-      {stats.map(({ key, label, icon: Icon, iconBg, iconColor, format, sub }) => (
-        <Card key={key} className="gap-0">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">{label}</p>
-                <p className="mt-1 text-2xl font-semibold text-gray-900">
-                  {format(dashboardStats[key])}
-                </p>
-                <p className="mt-1 text-sm text-gray-500">{sub(dashboardStats)}</p>
-              </div>
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg}`}
-              >
-                <Icon className={`h-5 w-5 ${iconColor}`} />
-              </div>
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      {stats.map(({ key, label, icon: Icon, format, sub }, index) => (
+        <motion.div
+          key={key}
+          initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...POP_IN_SPRING, delay: reduceMotion ? 0 : index * 0.06 }}
+          className="border-[3px] border-black bg-white p-4 brutal-shadow-sm"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-black/55">{label}</p>
+              <p className="mt-1 text-2xl font-black tabular-nums leading-none sm:text-3xl">
+                {format(dashboardStats[key])}
+              </p>
+              <p className="mt-1 text-[10px] font-bold uppercase text-black/45">{sub(dashboardStats)}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center border-2 border-black ${ACCENTS[index % ACCENTS.length]}`}
+            >
+              <Icon className="h-4 w-4" />
+            </div>
+          </div>
+        </motion.div>
       ))}
     </div>
-  );
-}
-
-export function ActiveSelectionsBanner() {
-  const { chartSelection, clearChartSelection } = useApp();
-
-  if (!chartSelection.status && !chartSelection.source) return null;
-
-  return (
-    <Card className="gap-0 border-amber-200 bg-amber-50 shadow-none">
-      <CardContent className="flex flex-wrap items-center gap-4 p-4">
-        <span className="text-sm font-medium text-amber-800">Active selections:</span>
-        {chartSelection.status && (
-          <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
-            Status: {STATUS_LABELS[chartSelection.status as ApplicationStatus]}
-          </span>
-        )}
-        {chartSelection.source && (
-          <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
-            Source: {SOURCE_LABELS[chartSelection.source as JobSource]}
-          </span>
-        )}
-        <button
-          onClick={clearChartSelection}
-          className="ml-auto flex items-center gap-1 text-sm text-amber-800 hover:text-amber-900"
-        >
-          <XCircle className="h-4 w-4" />
-          Clear
-        </button>
-      </CardContent>
-    </Card>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { Button } from "@/components/ui";
 import {
@@ -60,6 +61,38 @@ const SENIORITY_PATTERN = /\b(Senior|Staff|Principal|Lead|Junior|Intern)\b/i;
 const SWIPE_EXIT = { type: "spring" as const, stiffness: 320, damping: 30, mass: 0.75 };
 const SWIPE_RESET = { type: "spring" as const, stiffness: 520, damping: 34, mass: 0.6 };
 const SCREEN_EDGE_INSET = 56;
+
+function SwipeStamps({ x }: { x: MotionValue<number> }) {
+  const passOpacity = useTransform(x, [-140, -50, 0], [1, 0.5, 0]);
+  const saveOpacity = useTransform(x, [0, 50, 140], [0, 0.5, 1]);
+  const passRotate = useTransform(x, [-140, 0], [-14, 0]);
+  const saveRotate = useTransform(x, [0, 140], [0, 14]);
+
+  return (
+    <>
+      <motion.span
+        className="card-swipe-stamp card-swipe-stamp--pass"
+        style={{ opacity: passOpacity, rotate: passRotate }}
+        aria-hidden
+      >
+        Pass
+      </motion.span>
+      <motion.span
+        className="card-swipe-stamp card-swipe-stamp--save"
+        style={{ opacity: saveOpacity, rotate: saveRotate }}
+        aria-hidden
+      >
+        Save
+      </motion.span>
+    </>
+  );
+}
+
+function triggerHaptic() {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate(12);
+  }
+}
 
 function buildQuickMetadata(card: StackCard): string | null {
   const parts: string[] = [];
@@ -205,6 +238,7 @@ interface StackCardItemProps {
   card: StackCard;
   stackIndex: number;
   isTop: boolean;
+  isSwipingOut: boolean;
   dealAnimating: boolean;
   dragX?: MotionValue<number>;
   variants: Variants;
@@ -231,12 +265,19 @@ const ExitCardOverlay = memo(function ExitCardOverlay({
 }) {
   const x = useMotionValue(exiting.startX);
   const dragRotate = useTransform(x, [-280, 0, 280], [-14, 0, 14]);
-  const dragScale = useTransform(x, [-180, 0, 180], [0.985, 1.02, 0.985]);
-  const dragOpacity = useTransform(x, [-400, -120, 0, 120, 400], [0.55, 0.92, 1, 0.92, 0.55]);
+  const dragScale = useTransform(x, [-180, 0, 180], [0.985, 1, 0.985]);
 
   useEffect(() => {
-    void animate(x, getSwipeExitX(exiting.direction), SWIPE_EXIT).then(onComplete);
-  }, [exiting.direction, onComplete, x]);
+    let cancelled = false;
+    const controls = animate(x, getSwipeExitX(exiting.direction), SWIPE_EXIT);
+    void controls.then(() => {
+      if (!cancelled) onComplete();
+    });
+    return () => {
+      cancelled = true;
+      controls.stop();
+    };
+  }, [exiting.card.id, exiting.direction, onComplete, x]);
 
   return (
     <motion.div className="card card-0 card-exit-overlay" style={{ pointerEvents: "none" }}>
@@ -246,7 +287,6 @@ const ExitCardOverlay = memo(function ExitCardOverlay({
           x,
           rotate: dragRotate,
           scale: dragScale,
-          opacity: dragOpacity,
         }}
       >
         <CardContent
@@ -263,6 +303,7 @@ const StackCardItem = memo(function StackCardItem({
   card,
   stackIndex,
   isTop,
+  isSwipingOut,
   dealAnimating,
   dragX,
   variants,
@@ -276,8 +317,8 @@ const StackCardItem = memo(function StackCardItem({
   const localX = useMotionValue(0);
   const x = dragX ?? localX;
   const dragRotate = useTransform(x, [-280, 0, 280], [-14, 0, 14]);
-  const dragScale = useTransform(x, [-180, 0, 180], [0.985, 1.02, 0.985]);
-  const dragOpacity = useTransform(x, [-400, -120, 0, 120, 400], [0.55, 0.92, 1, 0.92, 0.55]);
+  const dragScale = useTransform(x, [-180, 0, 180], [0.99, 1, 0.99]);
+  const canDrag = isTop && !isSwipingOut;
 
   const setDragging = useCallback((dragging: boolean) => {
     interactiveRef.current?.classList.toggle("card-dragging", dragging);
@@ -289,19 +330,20 @@ const StackCardItem = memo(function StackCardItem({
 
   const commitSwipe = useCallback(
     (direction: "left" | "right") => {
-      if (!isTop || committingRef.current) {
+      if (!isTop || committingRef.current || isSwipingOut) {
         return;
       }
 
       committingRef.current = true;
       setDragging(false);
+      triggerHaptic();
       onExitStart?.(card, direction, x.get());
     },
-    [card, isTop, onExitStart, setDragging, x],
+    [card, isSwipingOut, isTop, onExitStart, setDragging, x],
   );
 
   const handleDrag = useCallback(() => {
-    if (!isTop || committingRef.current) {
+    if (!canDrag || committingRef.current) {
       return;
     }
 
@@ -318,11 +360,11 @@ const StackCardItem = memo(function StackCardItem({
     if (rect.right >= window.innerWidth - SCREEN_EDGE_INSET) {
       commitSwipe("right");
     }
-  }, [commitSwipe, isTop]);
+  }, [canDrag, commitSwipe]);
 
   const handleDragEnd = useCallback(
     (_: unknown, info: PanInfo) => {
-      if (!isTop || committingRef.current) {
+      if (!canDrag || committingRef.current) {
         return;
       }
 
@@ -342,7 +384,7 @@ const StackCardItem = memo(function StackCardItem({
 
       void animate(x, 0, SWIPE_RESET);
     },
-    [commitSwipe, isTop, setDragging, settings, x],
+    [canDrag, commitSwipe, setDragging, settings, x],
   );
 
   return (
@@ -353,27 +395,30 @@ const StackCardItem = memo(function StackCardItem({
       animate="visible"
       layout={false}
       className={`card card-${stackIndex}`}
-      style={{ pointerEvents: isTop ? "auto" : "none" }}
+      style={{
+        pointerEvents: canDrag ? "auto" : "none",
+        visibility: isSwipingOut ? "hidden" : "visible",
+      }}
     >
       <motion.div
         ref={interactiveRef}
         className="card-interactive"
-        drag={isTop ? "x" : false}
+        drag={canDrag ? "x" : false}
         dragConstraints={{ left: -900, right: 900 }}
-        dragElastic={0.35}
+        dragElastic={0.2}
         dragMomentum={false}
         dragTransition={{ bounceStiffness: 600, bounceDamping: 30 }}
-        onDragStart={() => isTop && setDragging(true)}
+        onDragStart={() => canDrag && setDragging(true)}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         style={{
-          x: isTop ? x : 0,
-          rotate: isTop ? dragRotate : 0,
-          scale: isTop ? dragScale : 1,
-          opacity: isTop ? dragOpacity : 1,
-          touchAction: isTop ? "none" : "auto",
+          x: canDrag ? x : 0,
+          rotate: canDrag ? dragRotate : 0,
+          scale: canDrag ? dragScale : 1,
+          touchAction: canDrag ? "none" : "auto",
         }}
       >
+        {canDrag ? <SwipeStamps x={x} /> : null}
         <CardContent
           card={card}
           quickMetadata={quickMetadata}
@@ -402,6 +447,8 @@ export function SimpleCardStack({
   );
   const topCardX = useMotionValue(0);
   const [exitingCard, setExitingCard] = useState<ExitingCardState | null>(null);
+  const [swipingOutId, setSwipingOutId] = useState<string | null>(null);
+  const pendingSwipeRef = useRef<{ card: StackCard; direction: "left" | "right" } | null>(null);
 
   useEffect(() => {
     if (!dealEnter || reduceMotion) {
@@ -418,22 +465,31 @@ export function SimpleCardStack({
 
   const handleExitStart = useCallback(
     (card: StackCard, direction: "left" | "right", startX: number) => {
-      setExitingCard({
-        card,
-        direction,
-        startX,
-        quickMetadata: buildQuickMetadata(card),
-        compensation: buildCompensationLine(card),
+      pendingSwipeRef.current = { card, direction };
+      flushSync(() => {
+        setSwipingOutId(card.id);
+        setExitingCard({
+          card,
+          direction,
+          startX,
+          quickMetadata: buildQuickMetadata(card),
+          compensation: buildCompensationLine(card),
+        });
       });
-      topCardX.set(0);
-      onSwipe?.(card, direction);
     },
-    [onSwipe, topCardX],
+    [],
   );
 
   const handleExitComplete = useCallback(() => {
+    const pending = pendingSwipeRef.current;
+    if (pending) {
+      onSwipe?.(pending.card, pending.direction);
+      pendingSwipeRef.current = null;
+    }
     setExitingCard(null);
-  }, []);
+    setSwipingOutId(null);
+    topCardX.set(0);
+  }, [onSwipe, topCardX]);
 
   const swipeTopCard = useCallback(
     (direction: "left" | "right") => {
@@ -458,6 +514,7 @@ export function SimpleCardStack({
             card={card}
             stackIndex={stackIndex}
             isTop={stackIndex === 0}
+            isSwipingOut={swipingOutId === card.id}
             dealAnimating={dealAnimating}
             dragX={stackIndex === 0 ? topCardX : undefined}
             variants={variants}
@@ -468,19 +525,19 @@ export function SimpleCardStack({
           />
         ))}
         {exitingCard ? (
-          <ExitCardOverlay exiting={exitingCard} onComplete={handleExitComplete} />
+          <ExitCardOverlay
+            key={exitingCard.card.id}
+            exiting={exitingCard}
+            onComplete={handleExitComplete}
+          />
         ) : null}
       </div>
-      <motion.div
-        className="mt-10 flex justify-center gap-4"
-        initial={dealEnter && !reduceMotion ? { opacity: 0, y: 22 } : false}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...POP_IN_SPRING, delay: dealEnter && !reduceMotion ? 0.4 : 0 }}
-      >
+      <div className="discover-action-bar">
         <Button
           type="button"
           variant="outline"
           size="sm"
+          className="min-w-[7rem] flex-1 md:flex-none"
           disabled={Boolean(exitingCard)}
           onClick={() => swipeTopCard("left")}
         >
@@ -490,12 +547,13 @@ export function SimpleCardStack({
           type="button"
           variant="lime"
           size="sm"
+          className="min-w-[7rem] flex-1 md:flex-none"
           disabled={Boolean(exitingCard)}
           onClick={() => swipeTopCard("right")}
         >
           Save
         </Button>
-      </motion.div>
+      </div>
     </div>
   );
 }

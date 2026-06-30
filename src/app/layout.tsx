@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Space_Grotesk } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import { APP_NAME } from "@/lib/brand";
@@ -18,6 +18,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: `${APP_NAME} — Job Application Tracker`,
   description: "Track applications from Handshake, LinkedIn, and Indeed. Discover local jobs with a swipe.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#fdfdf5",
 };
 
 export default function RootLayout({

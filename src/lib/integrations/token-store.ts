@@ -1,4 +1,11 @@
 import { cookies } from "next/headers";
+import { getCurrentUser } from "@/lib/auth/server";
+import {
+  clearIntegrationToken,
+  getAllIntegrationTokens,
+  getIntegrationToken,
+  setIntegrationToken,
+} from "@/lib/db/integration-tokens";
 import type { IntegrationProvider } from "@/lib/types";
 import type { StoredIntegrationSession } from "./types";
 
@@ -8,7 +15,7 @@ function cookieName(provider: IntegrationProvider) {
   return `${COOKIE_PREFIX}${provider}`;
 }
 
-export async function getSession(
+async function getCookieSession(
   provider: IntegrationProvider,
 ): Promise<StoredIntegrationSession | null> {
   const jar = await cookies();
@@ -21,7 +28,7 @@ export async function getSession(
   }
 }
 
-export async function setSession(session: StoredIntegrationSession) {
+async function setCookieSession(session: StoredIntegrationSession) {
   const jar = await cookies();
   jar.set(cookieName(session.provider), JSON.stringify(session), {
     httpOnly: true,
@@ -32,13 +39,45 @@ export async function setSession(session: StoredIntegrationSession) {
   });
 }
 
-export async function clearSession(provider: IntegrationProvider) {
+async function clearCookieSession(provider: IntegrationProvider) {
   const jar = await cookies();
   jar.delete(cookieName(provider));
 }
 
+export async function getSession(
+  provider: IntegrationProvider,
+): Promise<StoredIntegrationSession | null> {
+  const user = await getCurrentUser();
+  if (user) {
+    return getIntegrationToken(user.id, provider);
+  }
+  return getCookieSession(provider);
+}
+
+export async function setSession(session: StoredIntegrationSession) {
+  const user = await getCurrentUser();
+  if (user) {
+    await setIntegrationToken(user.id, session);
+    return;
+  }
+  await setCookieSession(session);
+}
+
+export async function clearSession(provider: IntegrationProvider) {
+  const user = await getCurrentUser();
+  if (user) {
+    await clearIntegrationToken(user.id, provider);
+  }
+  await clearCookieSession(provider);
+}
+
 export async function getAllSessions(): Promise<StoredIntegrationSession[]> {
+  const user = await getCurrentUser();
+  if (user) {
+    return getAllIntegrationTokens(user.id);
+  }
+
   const providers: IntegrationProvider[] = ["handshake", "linkedin", "indeed"];
-  const sessions = await Promise.all(providers.map((provider) => getSession(provider)));
+  const sessions = await Promise.all(providers.map((provider) => getCookieSession(provider)));
   return sessions.filter((session): session is StoredIntegrationSession => session !== null);
 }

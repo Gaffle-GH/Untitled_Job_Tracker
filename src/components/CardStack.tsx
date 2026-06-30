@@ -2,19 +2,55 @@
 
 import { useMemo } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { RotateCcw } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { DiscoverRefreshButton } from "@/components/DiscoverRefreshButton";
 import { SimpleCardStack, cardsToStackCards } from "@/components/SimpleCardStack";
+import { Button } from "@/components/ui";
 import { POP_SOFT_SPRING } from "@/lib/motion-presets";
 
 export function CardStack() {
-  const { discoverJobs, swipeDiscoverJob, discoverRefreshKey } = useApp();
+  const {
+    discoverJobs,
+    swipeDiscoverJob,
+    discoverRefreshKey,
+    undoDiscoverSwipe,
+    canUndoDiscover,
+    savedDiscoverIds,
+    passedDiscoverIds,
+  } = useApp();
   const reduceMotion = useReducedMotion();
   const stackCards = useMemo(() => cardsToStackCards(discoverJobs), [discoverJobs]);
   const showStack = discoverJobs.length > 0;
+  const reviewedCount = savedDiscoverIds.length + passedDiscoverIds.length;
 
   return (
-    <div className="relative w-full min-h-[620px]">
+    <div className="relative w-full min-h-[min(620px,calc(100dvh-14rem))] pb-24 md:min-h-[520px] md:pb-0">
+      {showStack ? (
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-2 md:mb-6">
+          <span className="border-2 border-black bg-accent-yellow px-3 py-1 text-[10px] font-bold uppercase tracking-wide">
+            {discoverJobs.length} left in deck
+          </span>
+          {reviewedCount > 0 ? (
+            <span className="border-2 border-black bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-black/60">
+              {reviewedCount} reviewed
+            </span>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!canUndoDiscover}
+            onClick={undoDiscoverSwipe}
+            className="gap-1"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Undo
+          </Button>
+          <DiscoverRefreshButton />
+        </div>
+      ) : null}
+
       <AnimatePresence mode="wait" initial={false}>
         {!showStack ? (
           <motion.div

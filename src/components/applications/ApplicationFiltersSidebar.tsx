@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import clsx from "clsx";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { SectionTitle } from "@/components/layout/PageShell";
 import { Badge, Button, Checkbox, Separator } from "@/components/ui";
 import { useApp } from "@/lib/store";
@@ -20,7 +22,7 @@ function statusesMatch(a: ApplicationStatus[], b: ApplicationStatus[]) {
   return a.every((status) => selected.has(status));
 }
 
-export function ApplicationFiltersSidebar() {
+function FilterPanel() {
   const { listFilters, setListFilters, resetListFilters, applications } = useApp();
 
   const sourceCounts = allSources.map((source) => ({
@@ -46,13 +48,23 @@ export function ApplicationFiltersSidebar() {
     setListFilters({ ...listFilters, selectedStatuses: statuses });
   };
 
+  const activeFilterCount =
+    listFilters.selectedSources.length + listFilters.selectedStatuses.length;
+
   return (
-    <aside className="w-full shrink-0 space-y-6 border-b-[3px] border-black bg-accent-cyan/20 p-4 md:w-72 md:border-b-0 md:border-r-[3px] md:p-6 lg:w-80">
+    <>
       <div className="flex items-center justify-between">
         <h2 className="brutal-heading text-lg">Filters</h2>
-        <Button variant="outline" size="sm" onClick={resetListFilters}>
-          Reset
-        </Button>
+        <div className="flex items-center gap-2">
+          {activeFilterCount > 0 ? (
+            <Badge variant="secondary" className="text-xs">
+              {activeFilterCount} active
+            </Badge>
+          ) : null}
+          <Button variant="outline" size="sm" onClick={resetListFilters}>
+            Reset
+          </Button>
+        </div>
       </div>
 
       <Separator />
@@ -131,6 +143,46 @@ export function ApplicationFiltersSidebar() {
           ))}
         </div>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function ApplicationFiltersSidebar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { listFilters } = useApp();
+  const activeFilterCount =
+    listFilters.selectedSources.length + listFilters.selectedStatuses.length;
+
+  return (
+    <>
+      <div className="border-b-[3px] border-black bg-accent-cyan/20 p-4 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileOpen((open) => !open)}
+          className="flex w-full items-center justify-between border-[3px] border-black bg-white px-4 py-3 text-left font-bold uppercase brutal-shadow-sm"
+          aria-expanded={mobileOpen}
+        >
+          <span className="flex items-center gap-2 text-sm">
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
+            {activeFilterCount > 0 ? (
+              <Badge variant="secondary" className="text-[10px]">
+                {activeFilterCount}
+              </Badge>
+            ) : null}
+          </span>
+          <ChevronDown className={clsx("h-4 w-4 transition-transform", mobileOpen && "rotate-180")} />
+        </button>
+        {mobileOpen ? (
+          <div className="mt-4 space-y-6 border-[3px] border-black bg-white p-4 brutal-shadow-sm">
+            <FilterPanel />
+          </div>
+        ) : null}
+      </div>
+
+      <aside className="hidden w-full shrink-0 space-y-6 border-r-[3px] border-black bg-accent-cyan/20 p-6 md:block md:w-72 lg:w-80">
+        <FilterPanel />
+      </aside>
+    </>
   );
 }

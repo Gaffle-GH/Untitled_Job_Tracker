@@ -220,7 +220,7 @@ export function OnboardingFlow() {
                     </Button>
                   </div>
                   <p className="text-center text-xs font-medium text-black/55">
-                    No password needed for this demo — just name and email.
+                    Create an account with email and password to save your pipeline securely.
                   </p>
                 </StepTextBox>
               </div>

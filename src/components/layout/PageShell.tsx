@@ -26,7 +26,7 @@ export function PageShell({
   return (
     <div
       className={clsx(
-        "mx-auto w-full px-4 pb-24 pt-4 md:px-8 md:pb-8",
+        "mx-auto w-full px-4 pt-4 pb-mobile-nav md:px-8 md:pb-8",
         fullWidth ? "max-w-6xl" : "max-w-4xl",
         className,
       )}

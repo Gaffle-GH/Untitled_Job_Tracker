@@ -6,10 +6,13 @@ import { ExternalLink, MapPin } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { PopSwap } from "@/components/motion/Pop";
+import { ApplicationMobileCard } from "@/components/applications/ApplicationMobileCard";
 import { POP_IN_SPRING, POP_TAP_SPRING, popSmHover, popSmRestShadow, popSmTap } from "@/lib/motion-presets";
 import { useApp } from "@/lib/store";
-import type { JobApplication } from "@/lib/types";
+import type { ApplicationStatus, JobApplication } from "@/lib/types";
 import { SOURCE_COLORS, SOURCE_LABELS, SOURCE_TEXT_COLORS, STATUS_COLORS, STATUS_LABELS } from "@/lib/types";
+
+const STATUS_OPTIONS = Object.keys(STATUS_LABELS) as ApplicationStatus[];
 
 const CELL = "px-3 py-3.5 align-middle";
 const LOCATION_HEADER = "py-3.5 pl-14 pr-3 align-middle text-center";
@@ -252,8 +255,13 @@ export function ApplicationRow({
   index: number;
 }) {
   const reduceMotion = useReducedMotion();
-  const statusLabel = STATUS_LABELS[application.status];
+  const { updateApplicationStatus } = useApp();
   const ladder = ladderCellProps(index, reduceMotion);
+
+  const handleStatusChange = (next: ApplicationStatus) => {
+    if (next === application.status) return;
+    void updateApplicationStatus(application.id, next);
+  };
 
   return (
     <tr className="border-b-[3px] border-black last:border-b-0 hover:bg-[#fffef5]">
@@ -307,15 +315,22 @@ export function ApplicationRow({
 
       <motion.td {...ladder} className={BADGE_CELL}>
         <div className="flex justify-center">
-          <span
-            className="inline-flex min-h-[1.625rem] items-center justify-center border-2 border-black px-1.5 py-0.5 text-center text-[10px] font-bold uppercase leading-tight text-black"
+          <select
+            value={application.status}
+            onChange={(e) => handleStatusChange(e.target.value as ApplicationStatus)}
+            aria-label={`Update status for ${application.title}`}
+            className="inline-flex min-h-[1.625rem] cursor-pointer appearance-none items-center justify-center border-2 border-black px-1.5 py-0.5 text-center text-[10px] font-bold uppercase leading-tight text-black outline-none focus:ring-2 focus:ring-accent-cyan"
             style={{
               backgroundColor: STATUS_COLORS[application.status],
               width: `${boxWidths.status}ch`,
             }}
           >
-            {statusLabel}
-          </span>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
         </div>
       </motion.td>
 
@@ -377,7 +392,14 @@ export function ApplicationList({
   }
 
   return (
-    <div className="w-full min-w-0 overflow-hidden border-[3px] border-black bg-white brutal-shadow">
+    <>
+      <div className="space-y-3 md:hidden">
+        {applications.map((application, index) => (
+          <ApplicationMobileCard key={`${application.id}-${listKey}`} application={application} index={index} />
+        ))}
+      </div>
+
+      <div className="hidden w-full min-w-0 overflow-hidden border-[3px] border-black bg-white brutal-shadow md:block">
       <table className="w-full table-fixed border-collapse">
         <colgroup>
           <col />
@@ -424,7 +446,8 @@ export function ApplicationList({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 
