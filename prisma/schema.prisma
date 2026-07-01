@@ -19,6 +19,7 @@ model User {
   sessions             Session[]
   applications         Application[]
   integrationTokens    IntegrationToken[]
+  documents            UserDocument[]
 }
 
 model Session {
@@ -35,6 +36,7 @@ model UserProfile {
   userId         String  @unique
   user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   location       String  @default("")
+  zipCode        String?
   latitude       Float?
   longitude      Float?
   rolePreference String  @default("")
@@ -43,22 +45,40 @@ model UserProfile {
 }
 
 model Application {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company   String
-  title     String
-  location  String
-  source    String
-  status    String
-  appliedAt String
-  salary    String?
-  url       String?
-  notes     String?
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company       String
+  title         String
+  location      String
+  zipCode       String?
+  latitude      Float?
+  longitude     Float?
+  source        String
+  status        String
+  appliedAt     String
+  salary        String?
+  url           String?
+  notes         String?
   companyDomain String?
-  logoUrl   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  logoUrl       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model UserDocument {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, type])
 }
 
 model IntegrationToken {

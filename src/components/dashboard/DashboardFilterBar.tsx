@@ -1,9 +1,12 @@
 "use client";
 
-import { Filter, Globe, Layers, CalendarDays } from "lucide-react";
-import { Card, CardContent } from "@/components/ui";
+import clsx from "clsx";
+import { CalendarDays, Filter, Globe, Layers, MapPin, RotateCcw } from "lucide-react";
+import { SectionTitle } from "@/components/layout/PageShell";
+import { Badge, Button, Dropdown } from "@/components/ui";
 import { useApp } from "@/lib/store";
 import {
+  DEFAULT_DASHBOARD_FILTERS,
   SOURCE_LABELS,
   STATUS_LABELS,
   type ApplicationStatus,
@@ -35,6 +38,14 @@ const statuses: (ApplicationStatus | "all")[] = [
 
 const periods: DashboardFilters["timePeriod"][] = ["all", "2026", "2025", "90d", "30d"];
 
+const locationScopes: DashboardFilters["locationScope"][] = ["all", "near_me", "remote"];
+
+const locationScopeLabels: Record<DashboardFilters["locationScope"], string> = {
+  all: "All Locations",
+  near_me: "Near Me",
+  remote: "Remote Only",
+};
+
 const periodLabels: Record<DashboardFilters["timePeriod"], string> = {
   all: "All Time",
   "2026": "2026",
@@ -43,76 +54,177 @@ const periodLabels: Record<DashboardFilters["timePeriod"], string> = {
   "30d": "Last 30 Days",
 };
 
+const sourceOptions = sources.map((source) => ({
+  value: source,
+  label: source === "all" ? "All Sources" : SOURCE_LABELS[source],
+}));
+
+const statusOptions = statuses.map((status) => ({
+  value: status,
+  label: status === "all" ? "All Statuses" : STATUS_LABELS[status],
+}));
+
+const periodOptions = periods.map((period) => ({
+  value: period,
+  label: periodLabels[period],
+}));
+
+const locationOptions = locationScopes.map((scope) => ({
+  value: scope,
+  label: locationScopeLabels[scope],
+}));
+
+const filterFields = [
+  {
+    key: "source" as const,
+    label: "Source",
+    icon: Layers,
+    accent: "bg-accent-cyan",
+  },
+  {
+    key: "status" as const,
+    label: "Status",
+    icon: Globe,
+    accent: "bg-accent-pink",
+  },
+  {
+    key: "timePeriod" as const,
+    label: "Time Period",
+    icon: CalendarDays,
+    accent: "bg-accent-lime",
+  },
+  {
+    key: "locationScope" as const,
+    label: "Location",
+    icon: MapPin,
+    accent: "bg-accent-yellow",
+  },
+];
+
+function countActiveFilters(filters: DashboardFilters) {
+  let count = 0;
+  if (filters.source !== "all") count += 1;
+  if (filters.status !== "all") count += 1;
+  if (filters.timePeriod !== "all") count += 1;
+  if (filters.locationScope !== "all") count += 1;
+  return count;
+}
+
 export function DashboardFilterBar() {
   const { dashboardFilters, setDashboardFilters } = useApp();
+  const activeCount = countActiveFilters(dashboardFilters);
 
   const update = (key: keyof DashboardFilters, value: string) => {
     setDashboardFilters({ ...dashboardFilters, [key]: value });
   };
 
+  const resetFilters = () => {
+    setDashboardFilters(DEFAULT_DASHBOARD_FILTERS);
+  };
+
   return (
-    <Card className="gap-0">
-      <CardContent className="p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Filter className="h-5 w-5 text-gray-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+    <div className="overflow-hidden border-[3px] border-black bg-white brutal-shadow-sm">
+      <div className="flex min-h-10 flex-wrap items-center justify-between gap-3 border-b-[3px] border-black bg-accent-purple/25 px-4 py-3 sm:px-5">
+        <SectionTitle as="h3" className="!mb-0 inline-flex items-center gap-1.5 self-center leading-none">
+          <Filter className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          Dashboard filters
+        </SectionTitle>
+        <div className="flex items-center gap-2">
+          {activeCount > 0 ? (
+            <Badge variant="secondary" className="text-[10px]">
+              {activeCount} active
+            </Badge>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={resetFilters}
+            disabled={activeCount === 0}
+            className="h-8 gap-1.5 px-2.5 text-[10px] normal-case tracking-normal"
+          >
+            <RotateCcw className="h-3 w-3" aria-hidden />
+            Reset
+          </Button>
         </div>
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <label className="space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <Layers className="h-4 w-4" />
-              Source
-            </span>
-            <select
-              value={dashboardFilters.source}
-              onChange={(e) => update("source", e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
-            >
-              {sources.map((source) => (
-                <option key={source} value={source}>
-                  {source === "all" ? "All Sources" : SOURCE_LABELS[source]}
-                </option>
-              ))}
-            </select>
-          </label>
+      </div>
 
-          <label className="space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <Globe className="h-4 w-4" />
-              Status
-            </span>
-            <select
-              value={dashboardFilters.status}
-              onChange={(e) => update("status", e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
-            >
-              {statuses.map((status) => (
-                <option key={status} value={status}>
-                  {status === "all" ? "All Statuses" : STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
-          </label>
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:gap-4 sm:p-5 lg:grid-cols-4">
+        {filterFields.map(({ key, label, icon: Icon, accent }) => {
+          const isActive = dashboardFilters[key] !== DEFAULT_DASHBOARD_FILTERS[key];
 
-          <label className="space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <CalendarDays className="h-4 w-4" />
-              Time Period
-            </span>
-            <select
-              value={dashboardFilters.timePeriod}
-              onChange={(e) => update("timePeriod", e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
+          return (
+            <div
+              key={key}
+              className={clsx(
+                "flex flex-col gap-2.5 border-[3px] border-black p-3 brutal-shadow-sm transition-colors",
+                isActive ? "bg-accent-yellow/35" : "bg-white",
+              )}
             >
-              {periods.map((period) => (
-                <option key={period} value={period}>
-                  {periodLabels[period]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </CardContent>
-    </Card>
+              <span className="flex items-center gap-2">
+                <span
+                  className={clsx(
+                    "flex h-7 w-7 shrink-0 items-center justify-center border-2 border-black",
+                    accent,
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
+                {isActive ? (
+                  <Badge variant="lime" className="ml-auto text-[9px]">
+                    On
+                  </Badge>
+                ) : null}
+              </span>
+
+              {key === "source" ? (
+                <Dropdown
+                  value={dashboardFilters.source}
+                  onChange={(value) => update("source", value)}
+                  options={sourceOptions}
+                  aria-label="Filter by source"
+                  className="w-full"
+                  triggerClassName="text-xs"
+                />
+              ) : null}
+
+              {key === "status" ? (
+                <Dropdown
+                  value={dashboardFilters.status}
+                  onChange={(value) => update("status", value)}
+                  options={statusOptions}
+                  aria-label="Filter by status"
+                  className="w-full"
+                  triggerClassName="text-xs"
+                />
+              ) : null}
+
+              {key === "timePeriod" ? (
+                <Dropdown
+                  value={dashboardFilters.timePeriod}
+                  onChange={(value) => update("timePeriod", value)}
+                  options={periodOptions}
+                  aria-label="Filter by time period"
+                  className="w-full"
+                  triggerClassName="text-xs"
+                />
+              ) : null}
+
+              {key === "locationScope" ? (
+                <Dropdown
+                  value={dashboardFilters.locationScope}
+                  onChange={(value) => update("locationScope", value)}
+                  options={locationOptions}
+                  aria-label="Filter by location"
+                  className="w-full"
+                  triggerClassName="text-xs"
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

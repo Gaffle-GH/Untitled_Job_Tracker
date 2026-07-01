@@ -2,17 +2,25 @@
 
 import clsx from "clsx";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, MapPin } from "lucide-react";
+import { ExternalLink, MapPin, StickyNote, Trash2 } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { PopSwap } from "@/components/motion/Pop";
 import { ApplicationMobileCard } from "@/components/applications/ApplicationMobileCard";
-import { POP_IN_SPRING, POP_TAP_SPRING, popSmHover, popSmRestShadow, popSmTap } from "@/lib/motion-presets";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Dropdown } from "@/components/ui";
+import { POP_TAP_SPRING, popSmHover, popSmRestShadow, popSmTap } from "@/lib/motion-presets";
 import { useApp } from "@/lib/store";
-import type { ApplicationStatus, JobApplication } from "@/lib/types";
+import type { ApplicationStatus, JobApplication, ListFilters } from "@/lib/types";
 import { SOURCE_COLORS, SOURCE_LABELS, SOURCE_TEXT_COLORS, STATUS_COLORS, STATUS_LABELS } from "@/lib/types";
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS) as ApplicationStatus[];
+
+const STATUS_DROPDOWN_OPTIONS = STATUS_OPTIONS.map((status) => ({
+  value: status,
+  label: STATUS_LABELS[status],
+  backgroundColor: STATUS_COLORS[status],
+}));
 
 const CELL = "px-3 py-3.5 align-middle";
 const LOCATION_HEADER = "py-3.5 pl-14 pr-3 align-middle text-center";
@@ -231,17 +239,10 @@ function ViewLinkButton({ url }: { url?: string }) {
   );
 }
 
-const LADDER_STAGGER_S = 0.05;
-const LADDER_MAX_DELAY_S = 0.4;
-
-function ladderCellProps(index: number, reduceMotion: boolean | null) {
+function ladderCellProps() {
   return {
-    initial: reduceMotion ? false : { opacity: 0, y: -14 },
+    initial: false,
     animate: { opacity: 1, y: 0 },
-    transition: {
-      ...POP_IN_SPRING,
-      delay: reduceMotion ? 0 : Math.min(index * LADDER_STAGGER_S, LADDER_MAX_DELAY_S),
-    },
   };
 }
 
@@ -249,21 +250,38 @@ export function ApplicationRow({
   application,
   boxWidths,
   index,
+  onRequestDelete,
 }: {
   application: JobApplication;
   boxWidths: { source: number; status: number };
   index: number;
+  onRequestDelete: (application: JobApplication) => void;
 }) {
-  const reduceMotion = useReducedMotion();
-  const { updateApplicationStatus } = useApp();
-  const ladder = ladderCellProps(index, reduceMotion);
+  const { updateApplicationStatus, updateApplicationNotes } = useApp();
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesDraft, setNotesDraft] = useState(application.notes ?? "");
+  const ladder = ladderCellProps();
+
+  useLayoutEffect(() => {
+    setNotesDraft(application.notes ?? "");
+  }, [application.id, application.notes]);
 
   const handleStatusChange = (next: ApplicationStatus) => {
     if (next === application.status) return;
     void updateApplicationStatus(application.id, next);
   };
 
+  const saveNotes = () => {
+    const trimmed = notesDraft.trim();
+    void updateApplicationNotes(application.id, trimmed || null);
+  };
+
+  const handleDelete = () => {
+    onRequestDelete(application);
+  };
+
   return (
+    <>
     <tr className="border-b-[3px] border-black last:border-b-0 hover:bg-[#fffef5]">
       <motion.td {...ladder} className={`${CELL} max-w-0`}>
         <div className="flex min-w-0 items-center gap-3">
@@ -315,22 +333,14 @@ export function ApplicationRow({
 
       <motion.td {...ladder} className={BADGE_CELL}>
         <div className="flex justify-center">
-          <select
+          <Dropdown
+            variant="badge"
             value={application.status}
-            onChange={(e) => handleStatusChange(e.target.value as ApplicationStatus)}
+            onChange={(value) => handleStatusChange(value as ApplicationStatus)}
+            options={STATUS_DROPDOWN_OPTIONS}
             aria-label={`Update status for ${application.title}`}
-            className="inline-flex min-h-[1.625rem] cursor-pointer appearance-none items-center justify-center border-2 border-black px-1.5 py-0.5 text-center text-[10px] font-bold uppercase leading-tight text-black outline-none focus:ring-2 focus:ring-accent-cyan"
-            style={{
-              backgroundColor: STATUS_COLORS[application.status],
-              width: `${boxWidths.status}ch`,
-            }}
-          >
-            {STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {STATUS_LABELS[status]}
-              </option>
-            ))}
-          </select>
+            triggerStyle={{ width: `${boxWidths.status}ch` }}
+          />
         </div>
       </motion.td>
 
@@ -344,20 +354,57 @@ export function ApplicationRow({
       </motion.td>
 
       <motion.td {...ladder} className={`${LINK_CELL} text-center`}>
-        <ViewLinkButton url={application.url} />
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => setNotesOpen((open) => !open)}
+            className={`inline-flex h-8 w-8 items-center justify-center border-2 border-black bg-white brutal-shadow-sm hover:bg-accent-yellow ${application.notes ? "bg-accent-yellow/60" : ""}`}
+            title="Notes"
+            aria-label="Edit notes"
+          >
+            <StickyNote className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="inline-flex h-8 w-8 items-center justify-center border-2 border-black bg-white brutal-shadow-sm hover:bg-accent-pink/50"
+            title="Remove"
+            aria-label="Remove application"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+          <ViewLinkButton url={application.url} />
+        </div>
       </motion.td>
     </tr>
+    {notesOpen ? (
+      <tr className="border-b-[3px] border-black bg-accent-yellow/20">
+        <td colSpan={7} className="px-4 py-3">
+          <label className="block space-y-1">
+            <span className="text-[10px] font-bold uppercase">Notes</span>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              onBlur={saveNotes}
+              rows={2}
+              placeholder="Interview prep, recruiter name, follow-up dates…"
+              className="w-full resize-y border-[3px] border-black bg-white px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-accent-cyan"
+            />
+          </label>
+        </td>
+      </tr>
+    ) : null}
+    </>
   );
 }
 
-function listFilterKey(filters: {
-  selectedSources: string[];
-  selectedStatuses: string[];
-}) {
+function listFilterKey(filters: ListFilters) {
   return (
     [...filters.selectedSources].sort().join(",") +
     "|" +
-    [...filters.selectedStatuses].sort().join(",")
+    [...filters.selectedStatuses].sort().join(",") +
+    "|" +
+    filters.searchQuery.trim().toLowerCase()
   );
 }
 
@@ -370,7 +417,8 @@ export function ApplicationList({
   layoutApplications?: JobApplication[];
   page?: number;
 }) {
-  const { listFilters, sortField, sortDirection } = useApp();
+  const { listFilters, sortField, sortDirection, deleteApplication, databaseMode } = useApp();
+  const [deleteTarget, setDeleteTarget] = useState<JobApplication | null>(null);
   const filterKey = useMemo(() => listFilterKey(listFilters), [listFilters]);
   const listKey = `${filterKey}::${sortField}:${sortDirection}::p${page}`;
   const boxWidths = useMemo(() => computeColumnBoxWidths(), []);
@@ -393,9 +441,44 @@ export function ApplicationList({
 
   return (
     <>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Remove application?"
+        confirmLabel="Remove"
+        cancelLabel="Keep it"
+        confirmVariant="pink"
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (deleteTarget) await deleteApplication(deleteTarget.id);
+        }}
+        description={
+          deleteTarget ? (
+            <>
+              <p>
+                You&apos;re about to remove{" "}
+                <span className="font-black">{deleteTarget.title}</span> at{" "}
+                <span className="font-black">{deleteTarget.company}</span> from your pipeline.
+              </p>
+              <ul className="mt-3 space-y-1.5 border-l-[3px] border-black/20 pl-3 text-xs font-bold uppercase tracking-wide text-black/65">
+                <li>Removed from Applications list</li>
+                <li>Dashboard stats will update</li>
+                {databaseMode ? <li>Deleted from your account</li> : <li>Removed from this browser</li>}
+              </ul>
+              <p className="mt-3 text-xs font-medium text-black/55">This can&apos;t be undone.</p>
+            </>
+          ) : null
+        }
+      />
+
+      <PopSwap id={listKey}>
       <div className="space-y-3 md:hidden">
         {applications.map((application, index) => (
-          <ApplicationMobileCard key={`${application.id}-${listKey}`} application={application} index={index} />
+          <ApplicationMobileCard
+            key={`${application.id}-${listKey}`}
+            application={application}
+            index={index}
+            onRequestDelete={setDeleteTarget}
+          />
         ))}
       </div>
 
@@ -442,11 +525,13 @@ export function ApplicationList({
               application={application}
               boxWidths={boxWidths}
               index={index}
+              onRequestDelete={setDeleteTarget}
             />
           ))}
         </tbody>
       </table>
       </div>
+      </PopSwap>
     </>
   );
 }

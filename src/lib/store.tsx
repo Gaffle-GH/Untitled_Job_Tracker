@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -22,11 +23,21 @@ import {
   fetchMe,
   loginWithApi,
   logoutWithApi,
+  createApplicationApi,
+  deleteApplicationApi,
+  geocodeLocationApi,
+  isUnauthorizedError,
+  patchApplicationNotes,
   patchApplicationStatus,
   saveProfileApi,
   searchJobsApi,
   signupWithApi,
 } from "@/services/authService";
+import { applicationMatchesProfileLocation } from "@/lib/location-match";
+import {
+  formatLocationDisplay,
+  normalizeLocationStorage,
+} from "@/lib/location-normalize";
 import type {
   ApplicationStatus,
   ChartSelection,
@@ -98,11 +109,13 @@ interface AppContextValue extends AppState {
   refreshDiscoverJobs: () => void;
   discoverRefreshKey: number;
   isRefreshingDiscover: boolean;
-  addApplication: (job: Omit<JobApplication, "id">) => void;
+  addApplication: (job: Omit<JobApplication, "id">) => Promise<void>;
   updateApplicationStatus: (
     id: string,
     status: JobApplication["status"],
   ) => Promise<void>;
+  updateApplicationNotes: (id: string, notes: string | null) => Promise<void>;
+  deleteApplication: (id: string) => Promise<void>;
   dashboardApplications: JobApplication[];
   sortedApplications: JobApplication[];
   filteredApplications: JobApplication[];
@@ -191,7 +204,7 @@ function resetDiscoverDeck() {
 function matchesTimePeriod(appliedAt: string, period: DashboardFilters["timePeriod"]) {
   if (period === "all") return true;
   const date = new Date(appliedAt);
-  const now = new Date("2026-06-22");
+  const now = new Date();
   if (period === "2026") return date.getFullYear() === 2026;
   if (period === "2025") return date.getFullYear() === 2025;
   const days = period === "90d" ? 90 : 30;
@@ -204,6 +217,7 @@ function filterDashboardApps(
   apps: JobApplication[],
   filters: DashboardFilters,
   selection: ChartSelection,
+  profile: UserProfile,
 ) {
   return apps.filter((app) => {
     const sourceOk = filters.source === "all" || app.source === filters.source;
@@ -211,17 +225,28 @@ function filterDashboardApps(
     const timeOk = matchesTimePeriod(app.appliedAt, filters.timePeriod);
     const chartStatusOk = !selection.status || app.status === selection.status;
     const chartSourceOk = !selection.source || app.source === selection.source;
-    return sourceOk && statusOk && timeOk && chartStatusOk && chartSourceOk;
+    const locationOk =
+      filters.locationScope === "all" ||
+      (filters.locationScope === "remote" && /remote/i.test(app.location)) ||
+      (filters.locationScope === "near_me" && applicationMatchesProfileLocation(app, profile));
+    return sourceOk && statusOk && timeOk && chartStatusOk && chartSourceOk && locationOk;
   });
 }
 
 function filterListApps(apps: JobApplication[], filters: ListFilters) {
+  const query = filters.searchQuery.trim().toLowerCase();
   return apps.filter((app) => {
     const sourceOk =
       filters.selectedSources.length === 0 || filters.selectedSources.includes(app.source);
     const statusOk =
       filters.selectedStatuses.length === 0 || filters.selectedStatuses.includes(app.status);
-    return sourceOk && statusOk;
+    const searchOk =
+      !query ||
+      app.company.toLowerCase().includes(query) ||
+      app.title.toLowerCase().includes(query) ||
+      app.location.toLowerCase().includes(query) ||
+      (app.notes?.toLowerCase().includes(query) ?? false);
+    return sourceOk && statusOk && searchOk;
   });
 }
 
@@ -285,11 +310,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     applicationId?: string;
   } | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const profileSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileGeocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const saved = loadState();
-    if (saved.user) setUser(saved.user);
-    if (saved.applications) setApplications(saved.applications);
 
     const savedPlatformJobs = saved.platformJobs ?? [];
     const savedDiscoverIds = sanitizeDiscoverIds(saved.savedDiscoverIds, savedPlatformJobs);
@@ -309,27 +334,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (saved.chartView) setChartView(saved.chartView);
     if (saved.sortField) setSortField(saved.sortField);
     if (saved.sortDirection) setSortDirection(saved.sortDirection);
-    if (saved.dashboardFilters) setDashboardFilters(saved.dashboardFilters);
+    if (saved.dashboardFilters) {
+      setDashboardFilters({ ...DEFAULT_DASHBOARD_FILTERS, ...saved.dashboardFilters });
+    }
     if (saved.chartSelection) setChartSelection(saved.chartSelection);
-    if (saved.listFilters) setListFilters(saved.listFilters);
+    if (saved.listFilters) {
+      setListFilters({ ...DEFAULT_LIST_FILTERS, ...saved.listFilters });
+    }
     if (saved.profile) setProfile(saved.profile);
     if (saved.platformJobs) setPlatformJobs(saved.platformJobs);
     setOnboardingComplete(readOnboardingComplete());
 
     void fetchMe()
       .then((me) => {
-        if (!me.database) return;
-        setDatabaseMode(true);
-        if (me.user) {
-          setUser(me.user);
-          if (me.user.notifyOnStatusChange !== undefined) {
-            setNotifyOnStatusChange(me.user.notifyOnStatusChange);
+        if (me.database) {
+          setDatabaseMode(true);
+          if (me.user) {
+            setUser(me.user);
+            if (me.user.notifyOnStatusChange !== undefined) {
+              setNotifyOnStatusChange(me.user.notifyOnStatusChange);
+            }
+            if (me.profile) setProfile(me.profile);
+            if (me.applications) setApplications(me.applications);
+            return;
           }
-          if (me.profile) setProfile(me.profile);
-          if (me.applications) setApplications(me.applications);
+          setUser(null);
+          if (saved.applications) setApplications(saved.applications);
+          return;
         }
+
+        setDatabaseMode(false);
+        if (saved.user) setUser(saved.user);
+        if (saved.applications) setApplications(saved.applications);
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (saved.user) setUser(saved.user);
+        if (saved.applications) setApplications(saved.applications);
+      })
       .finally(() => setHydrated(true));
   }, []);
 
@@ -426,9 +467,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setProfileState = useCallback(
     (next: UserProfile) => {
       setProfile(next);
-      if (databaseMode && user) {
-        void saveProfileApi(next, notifyOnStatusChange).catch(() => undefined);
+
+      if (profileGeocodeTimerRef.current) clearTimeout(profileGeocodeTimerRef.current);
+      if (next.location.trim() && next.latitude == null) {
+        profileGeocodeTimerRef.current = setTimeout(() => {
+          void geocodeLocationApi(
+            formatLocationDisplay(next.location, next.zipCode),
+          ).then((geo) => {
+            if (!geo) return;
+            setProfile((prev) =>
+              prev.location === next.location
+                ? { ...prev, latitude: geo.latitude, longitude: geo.longitude }
+                : prev,
+            );
+          });
+        }, 800);
       }
+
+      if (profileSaveTimerRef.current) clearTimeout(profileSaveTimerRef.current);
+      profileSaveTimerRef.current = setTimeout(() => {
+        const snapshot = next;
+        if (databaseMode && user) {
+          void saveProfileApi(snapshot, notifyOnStatusChange)
+            .then((result) => {
+              setProfile((prev) => {
+                const unchanged =
+                  prev.location === snapshot.location &&
+                  prev.rolePreference === snapshot.rolePreference &&
+                  prev.openToRemote === snapshot.openToRemote &&
+                  prev.skills.length === snapshot.skills.length &&
+                  prev.skills.every((skill, index) => skill === snapshot.skills[index]);
+                return unchanged ? result.profile : prev;
+              });
+            })
+            .catch(() => undefined);
+        }
+      }, 600);
     },
     [databaseMode, user, notifyOnStatusChange],
   );
@@ -524,23 +598,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSavedDiscoverIds((prev) => (prev.includes(jobId) ? prev : [...prev, jobId]));
       const job = discoverPool.find((entry) => entry.id === jobId);
       if (job) {
+        const payload: Omit<JobApplication, "id"> = {
+          company: job.company,
+          title: job.title,
+          location: job.location,
+          source: (job.source as JobSource) ?? "discover",
+          status: "applied",
+          appliedAt: new Date().toISOString().split("T")[0],
+          salary: job.salary,
+          url: job.url,
+          companyDomain: job.companyDomain,
+          logoUrl: job.logoUrl,
+        };
+
+        if (databaseMode && user) {
+          void createApplicationApi(payload)
+            .then((created) => {
+              setApplications((prev) => [created, ...prev]);
+              setLastDiscoverSwipe({ jobId, action, applicationId: created.id });
+            })
+            .catch((error) => {
+              if (isUnauthorizedError(error)) {
+                setUser(null);
+                const applicationId = crypto.randomUUID();
+                setApplications((prev) => [{ ...payload, id: applicationId }, ...prev]);
+                setLastDiscoverSwipe({ jobId, action, applicationId });
+                return;
+              }
+              setSavedDiscoverIds((prev) => prev.filter((id) => id !== jobId));
+            });
+          return;
+        }
+
         const applicationId = crypto.randomUUID();
-        setApplications((prev) => [
-          {
-            id: applicationId,
-            company: job.company,
-            title: job.title,
-            location: job.location,
-            source: job.source ?? "discover",
-            status: "applied",
-            appliedAt: new Date().toISOString().split("T")[0],
-            salary: job.salary,
-            url: job.url,
-            companyDomain: job.companyDomain,
-            logoUrl: job.logoUrl,
-          },
-          ...prev,
-        ]);
+        setApplications((prev) => [{ ...payload, id: applicationId }, ...prev]);
         setLastDiscoverSwipe({ jobId, action, applicationId });
         return;
       }
@@ -548,7 +639,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPassedDiscoverIds((prev) => (prev.includes(jobId) ? prev : [...prev, jobId]));
     }
     setLastDiscoverSwipe({ jobId, action });
-  }, [discoverPool]);
+  }, [databaseMode, discoverPool, user]);
 
   const undoDiscoverSwipe = useCallback(() => {
     if (!lastDiscoverSwipe) return;
@@ -556,13 +647,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (action === "save") {
       setSavedDiscoverIds((prev) => prev.filter((id) => id !== jobId));
       if (applicationId) {
+        if (databaseMode && user) {
+          void deleteApplicationApi(applicationId).catch(() => {});
+        }
         setApplications((prev) => prev.filter((app) => app.id !== applicationId));
       }
     } else {
       setPassedDiscoverIds((prev) => prev.filter((id) => id !== jobId));
     }
     setLastDiscoverSwipe(null);
-  }, [lastDiscoverSwipe]);
+  }, [databaseMode, lastDiscoverSwipe, user]);
 
   const refreshDiscoverJobs = useCallback(() => {
     setIsRefreshingDiscover(true);
@@ -574,11 +668,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       location: profile.location,
       query: profile.rolePreference,
       radius: 25,
+      openToRemote: profile.openToRemote,
     })
       .then((result) => {
         const jobs =
           result.jobs.length > 0 ? shuffleDiscoverJobs(result.jobs) : resetDiscoverDeck();
-        setDiscoverJobs(jobs);
+        setDiscoverJobs(jobs.length > 0 ? jobs : resetDiscoverDeck());
         if (result.geocoded) {
           setProfile((prev) => ({
             ...prev,
@@ -595,27 +690,110 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         window.setTimeout(() => setIsRefreshingDiscover(false), 500);
       });
-  }, [profile.location, profile.rolePreference]);
+  }, [profile.location, profile.rolePreference, profile.openToRemote]);
 
-  const addApplication = useCallback((job: Omit<JobApplication, "id">) => {
-    setApplications((prev) => [{ ...job, id: crypto.randomUUID() }, ...prev]);
-  }, []);
+  const addApplication = useCallback(
+    async (job: Omit<JobApplication, "id">) => {
+      const stored = normalizeLocationStorage({
+        label: job.location,
+        zipCode: job.zipCode,
+      });
+      let payload: Omit<JobApplication, "id"> = {
+        ...job,
+        location: stored.location,
+        ...(stored.zipCode ? { zipCode: stored.zipCode } : {}),
+      };
+
+      if (
+        payload.location.trim() &&
+        payload.location !== "—" &&
+        !/remote/i.test(payload.location) &&
+        payload.latitude == null
+      ) {
+        const geo = await geocodeLocationApi(
+          formatLocationDisplay(payload.location, payload.zipCode),
+        );
+        if (geo) {
+          const geoStored = normalizeLocationStorage({ label: geo.displayName });
+          payload = {
+            ...payload,
+            location: geoStored.location,
+            ...(geoStored.zipCode ? { zipCode: geoStored.zipCode } : {}),
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+          };
+        }
+      }
+
+      if (databaseMode && user) {
+        try {
+          const created = await createApplicationApi(payload);
+          setApplications((prev) => [created, ...prev]);
+          return;
+        } catch (error) {
+          if (!isUnauthorizedError(error)) throw error;
+          setUser(null);
+        }
+      }
+      setApplications((prev) => [{ ...payload, id: crypto.randomUUID() }, ...prev]);
+    },
+    [databaseMode, user],
+  );
 
   const updateApplicationStatus = useCallback(
     async (id: string, status: JobApplication["status"]) => {
       if (databaseMode && user) {
-        const updated = await patchApplicationStatus(id, status);
-        setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)));
-        return;
+        try {
+          const updated = await patchApplicationStatus(id, status);
+          setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)));
+          return;
+        } catch (error) {
+          if (!isUnauthorizedError(error)) throw error;
+          setUser(null);
+        }
       }
       setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
     },
     [databaseMode, user],
   );
 
+  const updateApplicationNotes = useCallback(
+    async (id: string, notes: string | null) => {
+      if (databaseMode && user) {
+        try {
+          const updated = await patchApplicationNotes(id, notes);
+          setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)));
+          return;
+        } catch (error) {
+          if (!isUnauthorizedError(error)) throw error;
+          setUser(null);
+        }
+      }
+      setApplications((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, notes: notes ?? undefined } : a)),
+      );
+    },
+    [databaseMode, user],
+  );
+
+  const deleteApplication = useCallback(
+    async (id: string) => {
+      if (databaseMode && user) {
+        try {
+          await deleteApplicationApi(id);
+        } catch (error) {
+          if (!isUnauthorizedError(error)) throw error;
+          setUser(null);
+        }
+      }
+      setApplications((prev) => prev.filter((a) => a.id !== id));
+    },
+    [databaseMode, user],
+  );
+
   const dashboardApplications = useMemo(
-    () => filterDashboardApps(applications, dashboardFilters, chartSelection),
-    [applications, dashboardFilters, chartSelection],
+    () => filterDashboardApps(applications, dashboardFilters, chartSelection, profile),
+    [applications, dashboardFilters, chartSelection, profile],
   );
 
   const filteredApplications = useMemo(
@@ -647,8 +825,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [applications]);
 
   const statusGroupCounts = useMemo(
-    () => countByStatusGroup(applications),
-    [applications],
+    () => countByStatusGroup(dashboardApplications),
+    [dashboardApplications],
   );
 
   const sourceCounts = useMemo(() => {
@@ -741,6 +919,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isRefreshingDiscover,
     addApplication,
     updateApplicationStatus,
+    updateApplicationNotes,
+    deleteApplication,
     dashboardApplications,
     sortedApplications,
     filteredApplications,

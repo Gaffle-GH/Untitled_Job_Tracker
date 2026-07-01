@@ -25,6 +25,7 @@
 *.pem
 prisma/*.db
 prisma/*.db-journal
+/storage/
 
 # debug
 npm-debug.log*

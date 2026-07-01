@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { ArrowRight, ExternalLink, MapPin, Sparkles } from "lucide-react";
 import { CompanyLogo } from "@/components/CompanyLogo";
-import { PopItem, PopPress, PopStagger, PopIn } from "@/components/motion/Pop";
+import { PopPress } from "@/components/motion/Pop";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { useApp } from "@/lib/store";
+import { formatLocationDisplay } from "@/lib/location-normalize";
 
 export function NearbyJobs() {
-  const { nearbyJobs, profile } = useApp();
+  const { nearbyJobs, profile, swipeDiscoverJob, savedDiscoverIds } = useApp();
 
   return (
     <Card accent="lime" className="gap-0">
@@ -17,7 +18,7 @@ export function NearbyJobs() {
           <div>
             <CardTitle>Jobs Near You</CardTitle>
             <p className="mt-2 text-sm font-medium">
-              Matched to your profile · {profile.location}
+              Matched to your profile · {formatLocationDisplay(profile.location, profile.zipCode)}
             </p>
           </div>
           <Link href="/discover">
@@ -29,8 +30,7 @@ export function NearbyJobs() {
       </CardHeader>
       <CardContent className="space-y-3">
         {nearbyJobs.length === 0 ? (
-          <PopIn>
-            <div className="border-[3px] border-black bg-white p-6 text-center brutal-shadow-sm">
+          <div className="border-[3px] border-black bg-white p-6 text-center brutal-shadow-sm">
             <Sparkles className="mx-auto mb-2 h-8 w-8" />
             <p className="font-bold">No matches right now</p>
             <p className="mt-1 text-sm">Update your profile in Settings or refresh Discover</p>
@@ -40,12 +40,11 @@ export function NearbyJobs() {
               </Button>
             </Link>
           </div>
-          </PopIn>
         ) : (
-          <PopStagger className="space-y-3">
+          <div className="space-y-3">
             {nearbyJobs.map(({ job, matchReasons }) => (
-              <PopItem key={job.id}>
-                <PopPress
+              <PopPress
+                key={job.id}
                   className="flex flex-col gap-3 border-[3px] border-black bg-white p-4 sm:flex-row sm:items-stretch sm:gap-4"
                   shadow="2px 2px 0 0 #000000"
                 >
@@ -76,12 +75,21 @@ export function NearbyJobs() {
                 </div>
               </div>
               </div>
-              {(job.salary || job.url) && (
-                <div className="flex shrink-0 items-center justify-between gap-3 border-t-2 border-black/10 pt-3 sm:flex-col sm:items-end sm:justify-between sm:self-stretch sm:border-t-0 sm:pt-0">
+              <div className="flex shrink-0 flex-col items-stretch justify-between gap-2 border-t-2 border-black/10 pt-3 sm:items-end sm:self-stretch sm:border-t-0 sm:pt-0">
                   {job.salary ? (
                     <p className="text-right text-xs font-bold">{job.salary}</p>
                   ) : null}
-                  {job.url ? (
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant={savedDiscoverIds.includes(job.id) ? "outline" : "lime"}
+                      size="sm"
+                      disabled={savedDiscoverIds.includes(job.id)}
+                      onClick={() => swipeDiscoverJob(job.id, "save")}
+                    >
+                      {savedDiscoverIds.includes(job.id) ? "Saved" : "Save"}
+                    </Button>
+                    {job.url ? (
                     <a
                       href={job.url}
                       target="_blank"
@@ -91,13 +99,12 @@ export function NearbyJobs() {
                       View
                       <ExternalLink className="h-3 w-3" aria-hidden />
                     </a>
-                  ) : null}
+                    ) : null}
+                  </div>
                 </div>
-              )}
                 </PopPress>
-              </PopItem>
             ))}
-          </PopStagger>
+          </div>
         )}
       </CardContent>
     </Card>

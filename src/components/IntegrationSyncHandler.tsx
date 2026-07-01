@@ -16,11 +16,13 @@ export function IntegrationSyncHandler() {
   const router = useRouter();
   const { syncIntegration } = useApp();
   const handled = useRef<string | null>(null);
+  const connected = searchParams.get("connected");
+  const syncParam = searchParams.get("sync");
+  const errorParam = searchParams.get("error");
 
   useEffect(() => {
-    const connected = searchParams.get("connected");
-    const shouldSync = searchParams.get("sync") === "1";
-    const key = `${connected ?? ""}:${shouldSync}:${searchParams.get("error") ?? ""}`;
+    const shouldSync = syncParam === "1";
+    const key = `${connected ?? ""}:${shouldSync}:${errorParam ?? ""}`;
     if (handled.current === key) return;
     handled.current = key;
 
@@ -29,7 +31,7 @@ export function IntegrationSyncHandler() {
     void syncIntegration(connected).finally(() => {
       router.replace("/settings");
     });
-  }, [router, searchParams, syncIntegration]);
+  }, [connected, syncParam, errorParam, router, syncIntegration]);
 
   return null;
 }

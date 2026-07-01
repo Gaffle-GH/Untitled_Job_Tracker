@@ -20,12 +20,7 @@ export async function PATCH(
 
   try {
     const user = await requireUser();
-    const body = (await request.json()) as { status?: string };
-    const status = body.status;
-
-    if (!status || !VALID_STATUSES.has(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-    }
+    const body = (await request.json()) as { status?: string; notes?: string | null };
 
     const existing = await prisma.application.findFirst({
       where: { id, userId: user.id },
@@ -33,6 +28,19 @@ export async function PATCH(
 
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (body.notes !== undefined && body.status === undefined) {
+      const updated = await prisma.application.update({
+        where: { id },
+        data: { notes: body.notes?.trim() || null },
+      });
+      return NextResponse.json(applicationToClient(updated));
+    }
+
+    const status = body.status;
+    if (!status || !VALID_STATUSES.has(status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
     const previousStatus = existing.status as ApplicationStatus;
@@ -59,6 +67,33 @@ export async function PATCH(
     }
 
     return NextResponse.json(applicationToClient(updated));
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const user = await requireUser();
+    const existing = await prisma.application.findFirst({
+      where: { id, userId: user.id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    await prisma.application.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

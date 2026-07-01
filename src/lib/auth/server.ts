@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma, isDatabaseConfigured } from "@/lib/db";
 import type { UserProfile } from "@/lib/types";
 import { DEFAULT_USER_PROFILE } from "@/lib/types";
+import { normalizeLocationStorage } from "@/lib/location-normalize";
 
 export const AUTH_COOKIE = "jt-auth";
 const SESSION_DAYS = 30;
@@ -25,14 +26,21 @@ function parseSkills(raw: string): string[] {
 
 export function profileFromRecord(record: {
   location: string;
+  zipCode?: string | null;
   latitude: number | null;
   longitude: number | null;
   rolePreference: string;
   skills: string;
   openToRemote: boolean;
 }): UserProfile & { latitude?: number; longitude?: number } {
+  const stored = normalizeLocationStorage({
+    label: record.location,
+    zipCode: record.zipCode ?? undefined,
+  });
+
   return {
-    location: record.location,
+    location: stored.location,
+    ...(stored.zipCode ? { zipCode: stored.zipCode } : {}),
     rolePreference: record.rolePreference,
     skills: parseSkills(record.skills),
     openToRemote: record.openToRemote,

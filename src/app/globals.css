@@ -114,6 +114,12 @@ body {
   .marquee-loop {
     animation: none;
   }
+
+  .brutal-card-hover:hover,
+  .brutal-card-hover:active {
+    transform: none;
+    box-shadow: var(--shadow-brutal-sm);
+  }
 }
 
 /* Next.js devtools portal — dev-only host, should not affect page layout */

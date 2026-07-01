@@ -1,15 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import clsx from "clsx";
-import { ExternalLink, MapPin } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import { ExternalLink, MapPin, Trash2 } from "lucide-react";
 import { CompanyLogo } from "@/components/CompanyLogo";
-import { POP_IN_SPRING } from "@/lib/motion-presets";
+import { Dropdown } from "@/components/ui";
 import { useApp } from "@/lib/store";
 import type { ApplicationStatus, JobApplication } from "@/lib/types";
 import { SOURCE_COLORS, SOURCE_LABELS, SOURCE_TEXT_COLORS, STATUS_COLORS, STATUS_LABELS } from "@/lib/types";
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS) as ApplicationStatus[];
+
+const STATUS_DROPDOWN_OPTIONS = STATUS_OPTIONS.map((status) => ({
+  value: status,
+  label: STATUS_LABELS[status],
+  backgroundColor: STATUS_COLORS[status],
+}));
 
 function formatAppliedDate(appliedAt: string) {
   const date = new Date(`${appliedAt}T12:00:00`);
@@ -19,21 +25,21 @@ function formatAppliedDate(appliedAt: string) {
 
 export function ApplicationMobileCard({
   application,
-  index,
+  onRequestDelete,
 }: {
   application: JobApplication;
   index: number;
+  onRequestDelete: (application: JobApplication) => void;
 }) {
-  const reduceMotion = useReducedMotion();
-  const { updateApplicationStatus } = useApp();
+  const { updateApplicationStatus, updateApplicationNotes } = useApp();
+  const [notesDraft, setNotesDraft] = useState(application.notes ?? "");
+
+  const handleDelete = () => {
+    onRequestDelete(application);
+  };
 
   return (
-    <motion.article
-      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...POP_IN_SPRING, delay: reduceMotion ? 0 : Math.min(index * 0.04, 0.24) }}
-      className="border-[3px] border-black bg-white p-4 brutal-shadow-sm"
-    >
+    <article className="border-[3px] border-black bg-white p-4 brutal-shadow-sm">
       <div className="flex gap-3">
         <CompanyLogo
           company={application.company}
@@ -52,6 +58,14 @@ export function ApplicationMobileCard({
             <span className="truncate">{application.location}</span>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center border-2 border-black bg-white brutal-shadow-sm hover:bg-accent-pink/50"
+          aria-label="Remove application"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -64,20 +78,30 @@ export function ApplicationMobileCard({
         >
           {SOURCE_LABELS[application.source]}
         </span>
-        <select
+        <Dropdown
+          variant="badge"
           value={application.status}
-          onChange={(e) => void updateApplicationStatus(application.id, e.target.value as ApplicationStatus)}
+          onChange={(value) => void updateApplicationStatus(application.id, value as ApplicationStatus)}
+          options={STATUS_DROPDOWN_OPTIONS}
           aria-label={`Update status for ${application.title}`}
-          className="inline-flex min-h-[1.625rem] flex-1 cursor-pointer appearance-none items-center justify-center border-2 border-black px-2 py-0.5 text-[10px] font-bold uppercase text-black outline-none focus:ring-2 focus:ring-accent-cyan"
-          style={{ backgroundColor: STATUS_COLORS[application.status] }}
-        >
-          {STATUS_OPTIONS.map((status) => (
-            <option key={status} value={status}>
-              {STATUS_LABELS[status]}
-            </option>
-          ))}
-        </select>
+          className="min-w-0 flex-1"
+        />
       </div>
+
+      <label className="mt-3 block space-y-1">
+        <span className="text-[10px] font-bold uppercase text-black/50">Notes</span>
+        <textarea
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          onBlur={() => {
+            const trimmed = notesDraft.trim();
+            void updateApplicationNotes(application.id, trimmed || null);
+          }}
+          rows={2}
+          placeholder="Interview prep, recruiter name…"
+          className="w-full resize-y border-2 border-black bg-white px-2 py-1.5 text-xs font-medium outline-none focus:ring-2 focus:ring-accent-cyan"
+        />
+      </label>
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t-2 border-black/15 pt-3">
         <div className="text-xs">
@@ -104,6 +128,6 @@ export function ApplicationMobileCard({
           </a>
         ) : null}
       </div>
-    </motion.article>
+    </article>
   );
 }

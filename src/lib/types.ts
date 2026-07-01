@@ -16,6 +16,9 @@ export interface JobApplication {
   company: string;
   title: string;
   location: string;
+  zipCode?: string;
+  latitude?: number;
+  longitude?: number;
   source: JobSource;
   status: ApplicationStatus;
   appliedAt: string;
@@ -70,6 +73,7 @@ export interface User {
 
 export interface UserProfile {
   location: string;
+  zipCode?: string;
   rolePreference: string;
   skills: string[];
   openToRemote: boolean;
@@ -79,8 +83,8 @@ export interface UserProfile {
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
   location: "San Francisco, CA",
-  rolePreference: "Software Engineer",
-  skills: ["TypeScript", "React", "Python", "Node.js"],
+  rolePreference: "",
+  skills: [],
   openToRemote: true,
 };
 
@@ -106,6 +110,17 @@ export interface DashboardFilters {
   source: JobSource | "all";
   status: ApplicationStatus | "all";
   timePeriod: "all" | "2026" | "2025" | "90d" | "30d";
+  locationScope: "all" | "near_me" | "remote";
+}
+
+export type ProfileDocumentType = "resume" | "cover_letter";
+
+export interface ProfileDocumentMeta {
+  type: ProfileDocumentType;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  updatedAt: string;
 }
 
 export interface ChartSelection {
@@ -116,17 +131,20 @@ export interface ChartSelection {
 export interface ListFilters {
   selectedSources: JobSource[];
   selectedStatuses: ApplicationStatus[];
+  searchQuery: string;
 }
 
 export const DEFAULT_DASHBOARD_FILTERS: DashboardFilters = {
   source: "all",
   status: "all",
   timePeriod: "all",
+  locationScope: "all",
 };
 
 export const DEFAULT_LIST_FILTERS: ListFilters = {
   selectedSources: [],
   selectedStatuses: [],
+  searchQuery: "",
 };
 
 export const CHART_PALETTE = [

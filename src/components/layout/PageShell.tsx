@@ -1,7 +1,6 @@
 "use client";
 
 import clsx from "clsx";
-import { PopIn } from "@/components/motion/Pop";
 
 const accentClasses = {
   cyan: "bg-accent-cyan",
@@ -71,26 +70,24 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <PopIn y={18}>
-      <header
-        className={clsx(
-          "mb-8 border-[3px] border-black p-5 brutal-shadow-lg md:p-6",
-          accentClasses[accent],
-        )}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <SectionTitle as="p" className="mb-2">
-              {label}
-            </SectionTitle>
-            <h1 className="brutal-heading text-2xl md:text-3xl">{title}</h1>
-            {description ? (
-              <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed">{description}</p>
-            ) : null}
-          </div>
-          {action ? <div className="shrink-0">{action}</div> : null}
+    <header
+      className={clsx(
+        "mb-8 border-[3px] border-black p-5 brutal-shadow-lg md:p-6",
+        accentClasses[accent],
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <SectionTitle as="p" className="mb-2">
+            {label}
+          </SectionTitle>
+          <h1 className="brutal-heading text-2xl md:text-3xl">{title}</h1>
+          {description ? (
+            <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed">{description}</p>
+          ) : null}
         </div>
-      </header>
-    </PopIn>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+    </header>
   );
 }

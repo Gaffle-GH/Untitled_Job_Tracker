@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronDown } from "lucide-react";
+import { forwardRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   POP_SPRING,
@@ -117,6 +117,8 @@ export function Button({
 }) {
   const reduceMotion = useReducedMotion();
   const usePopShadow = pop && variant !== "ghost";
+  const isInactive = props.disabled || props["aria-pressed"] === true;
+  const motionEnabled = !reduceMotion && !isInactive;
 
   return (
     <motion.button
@@ -125,20 +127,20 @@ export function Button({
         ...style,
       }}
       whileHover={
-        reduceMotion || props.disabled
-          ? undefined
-          : usePopShadow
+        motionEnabled
+          ? usePopShadow
             ? popSmHover
             : popScaleHover
+          : undefined
       }
       whileTap={
-        reduceMotion || props.disabled
-          ? undefined
-          : usePopShadow
+        motionEnabled
+          ? usePopShadow
             ? popSmTap
             : popScaleTap
+          : undefined
       }
-      transition={POP_TAP_SPRING}
+      transition={motionEnabled ? POP_TAP_SPRING : { duration: 0 }}
       className={clsx(
         "inline-flex items-center justify-center border-[3px] border-black font-bold uppercase tracking-wide disabled:pointer-events-none disabled:opacity-50",
         variant === "default" && "bg-black text-white hover:bg-black/90",
@@ -161,44 +163,23 @@ export function Button({
   );
 }
 
-export function Input({
-  className,
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={clsx(
-        "w-full border-[3px] border-black bg-white px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-accent-cyan",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export function Select({
-  className,
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <div className="relative inline-flex w-fit">
-      <select
+export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...props }, ref) {
+    return (
+      <input
+        ref={ref}
         className={clsx(
-          "appearance-none border-[3px] border-black bg-white py-2 pl-3 pr-8 text-sm font-bold uppercase brutal-shadow-sm outline-none focus:ring-2 focus:ring-accent-cyan",
+          "w-full border-[3px] border-black bg-white px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-accent-cyan",
           className,
         )}
         {...props}
-      >
-        {children}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2"
-        aria-hidden
       />
-    </div>
-  );
-}
+    );
+  },
+);
+
+export { Dropdown, type DropdownOption } from "@/components/ui/Dropdown";
+export { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 
 export function Separator({ className }: { className?: string }) {
   return <div className={clsx("h-[3px] w-full shrink-0 bg-black", className)} />;

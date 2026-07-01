@@ -49,7 +49,9 @@ function FilterPanel() {
   };
 
   const activeFilterCount =
-    listFilters.selectedSources.length + listFilters.selectedStatuses.length;
+    listFilters.selectedSources.length +
+    listFilters.selectedStatuses.length +
+    (listFilters.searchQuery.trim() ? 1 : 0);
 
   return (
     <>
@@ -151,7 +153,9 @@ export function ApplicationFiltersSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { listFilters } = useApp();
   const activeFilterCount =
-    listFilters.selectedSources.length + listFilters.selectedStatuses.length;
+    listFilters.selectedSources.length +
+    listFilters.selectedStatuses.length +
+    (listFilters.searchQuery.trim() ? 1 : 0);
 
   return (
     <>

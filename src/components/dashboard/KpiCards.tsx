@@ -1,8 +1,6 @@
 "use client";
 
 import { Briefcase, DollarSign, TrendingUp, Users } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
-import { POP_IN_SPRING } from "@/lib/motion-presets";
 import { useApp } from "@/lib/store";
 
 const ACCENTS = ["bg-accent-cyan", "bg-accent-pink", "bg-accent-lime", "bg-accent-yellow"] as const;
@@ -40,18 +38,11 @@ const stats = [
 
 export function KpiCards() {
   const { dashboardStats } = useApp();
-  const reduceMotion = useReducedMotion();
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       {stats.map(({ key, label, icon: Icon, format, sub }, index) => (
-        <motion.div
-          key={key}
-          initial={reduceMotion ? false : { opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...POP_IN_SPRING, delay: reduceMotion ? 0 : index * 0.06 }}
-          className="border-[3px] border-black bg-white p-4 brutal-shadow-sm"
-        >
+        <div key={key} className="border-[3px] border-black bg-white p-4 brutal-shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wide text-black/55">{label}</p>
@@ -66,7 +57,7 @@ export function KpiCards() {
               <Icon className="h-4 w-4" />
             </div>
           </div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );

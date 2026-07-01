@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
-import { PopIn } from "@/components/motion/Pop";
+import { PopIn, PopReveal } from "@/components/motion/Pop";
 import { Button } from "@/components/ui";
 import {
   POP_IN_SPRING,
@@ -204,8 +204,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </header>
 
-        {mobileMenuOpen ? (
-          <div className="border-b-[3px] border-black bg-white px-4 py-3 md:hidden">
+        <PopReveal show={mobileMenuOpen} className="md:hidden">
+          <div className="border-b-[3px] border-black bg-white px-4 py-3">
             {user ? (
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -234,7 +234,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             )}
           </div>
-        ) : null}
+        </PopReveal>
 
         <main
           className={clsx(

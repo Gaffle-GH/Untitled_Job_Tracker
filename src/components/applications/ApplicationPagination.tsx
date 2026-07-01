@@ -2,6 +2,8 @@
 
 import clsx from "clsx";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { POP_TAP_SPRING } from "@/lib/motion-presets";
 import { Button } from "@/components/ui";
 
 export const APPLICATIONS_PAGE_SIZE = 10;
@@ -46,6 +48,8 @@ export function ApplicationPagination({
   const end = Math.min(currentPage * pageSize, totalItems);
   const pages = pageNumbers(currentPage, totalPages);
 
+  const reduceMotion = useReducedMotion();
+
   return (
     <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-bold uppercase tracking-wide">
@@ -73,12 +77,16 @@ export function ApplicationPagination({
                   …
                 </span>
               ) : (
-                <button
+                <motion.button
                   key={page}
                   type="button"
+                  layout={!reduceMotion}
                   onClick={() => onPageChange(page)}
                   aria-label={`Page ${page}`}
                   aria-current={page === currentPage ? "page" : undefined}
+                  whileHover={reduceMotion ? undefined : { scale: 1.06, y: -1 }}
+                  whileTap={reduceMotion ? undefined : { scale: 0.94, y: 0 }}
+                  transition={POP_TAP_SPRING}
                   className={clsx(
                     "flex h-8 min-w-8 items-center justify-center border-[3px] border-black px-2 text-xs font-bold uppercase brutal-shadow-sm transition-colors",
                     page === currentPage
@@ -87,7 +95,7 @@ export function ApplicationPagination({
                   )}
                 >
                   {page}
-                </button>
+                </motion.button>
               ),
             )}
           </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser, ensureUserProfile, profileFromRecord } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { geocodeLocation } from "@/lib/geocode";
+import { formatLocationDisplay, normalizeLocationStorage } from "@/lib/location-normalize";
 import { isDatabaseConfigured } from "@/lib/db";
 import type { UserProfile } from "@/lib/types";
 
@@ -18,9 +19,18 @@ export async function PUT(request: Request) {
 
     let latitude: number | undefined;
     let longitude: number | undefined;
+    let location = body.location ?? "";
+    let zipCode: string | null | undefined = body.zipCode ?? null;
 
     if (body.location?.trim()) {
-      const geo = await geocodeLocation(body.location);
+      const stored = normalizeLocationStorage({
+        label: body.location,
+        zipCode: body.zipCode,
+      });
+      location = stored.location;
+      zipCode = stored.zipCode ?? null;
+
+      const geo = await geocodeLocation(formatLocationDisplay(stored.location, stored.zipCode));
       if (geo) {
         latitude = geo.latitude;
         longitude = geo.longitude;
@@ -31,7 +41,8 @@ export async function PUT(request: Request) {
       where: { userId: user.id },
       create: {
         userId: user.id,
-        location: body.location ?? "",
+        location,
+        zipCode,
         latitude: latitude ?? null,
         longitude: longitude ?? null,
         rolePreference: body.rolePreference ?? "",
@@ -39,7 +50,8 @@ export async function PUT(request: Request) {
         openToRemote: body.openToRemote ?? true,
       },
       update: {
-        ...(body.location !== undefined ? { location: body.location } : {}),
+        ...(body.location !== undefined ? { location } : {}),
+        ...(body.zipCode !== undefined || body.location !== undefined ? { zipCode } : {}),
         ...(latitude !== undefined ? { latitude } : {}),
         ...(longitude !== undefined ? { longitude } : {}),
         ...(body.rolePreference !== undefined ? { rolePreference: body.rolePreference } : {}),
