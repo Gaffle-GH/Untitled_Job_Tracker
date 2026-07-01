@@ -104,22 +104,22 @@ export function CardStack() {
     canUndoDiscover,
     savedDiscoverIds,
     passedDiscoverIds,
-    refreshDiscoverJobs,
     profile,
-    hydrated,
     isRefreshingDiscover,
+    discoverBootstrapped,
   } = useApp();
-  const didAutoRefresh = useRef(false);
-
-  useEffect(() => {
-    if (!hydrated || didAutoRefresh.current || !profile.location.trim()) return;
-    didAutoRefresh.current = true;
-    refreshDiscoverJobs();
-  }, [hydrated, profile.location, refreshDiscoverJobs]);
+  const enableDealEnterRef = useRef(true);
 
   const stackCards = useMemo(() => cardsToStackCards(discoverJobs), [discoverJobs]);
-  const showStack = discoverJobs.length > 0;
+  const waitingForJobs = profile.location.trim().length > 0 && !discoverBootstrapped;
+  const showStack = !waitingForJobs && discoverJobs.length > 0;
   const reviewedCount = savedDiscoverIds.length + passedDiscoverIds.length;
+
+  useEffect(() => {
+    if (showStack && discoverBootstrapped) {
+      enableDealEnterRef.current = false;
+    }
+  }, [showStack, discoverBootstrapped]);
 
   return (
     <div className="relative w-full min-h-[min(620px,calc(100dvh-14rem))] pb-24 md:min-h-[520px] md:pb-0">
@@ -155,16 +155,17 @@ export function CardStack() {
         onUndo={undoDiscoverSwipe}
       />
 
-      {showStack ? (
-        <div key={`discover-deck-${discoverRefreshKey}`} className="w-full">
-          <SimpleCardStack
-            dealEnter
-            cards={stackCards}
-            onSwipe={(card, direction) => {
-              swipeDiscoverJob(card.id, direction === "right" ? "save" : "pass");
-            }}
-          />
-        </div>
+      {waitingForJobs ? (
+        <DiscoverEmptyState isRefreshing reviewedCount={reviewedCount} />
+      ) : showStack ? (
+        <SimpleCardStack
+          key={discoverRefreshKey}
+          dealEnter={enableDealEnterRef.current}
+          cards={stackCards}
+          onSwipe={(card, direction) => {
+            swipeDiscoverJob(card.id, direction === "right" ? "save" : "pass");
+          }}
+        />
       ) : (
         <DiscoverEmptyState isRefreshing={isRefreshingDiscover} reviewedCount={reviewedCount} />
       )}

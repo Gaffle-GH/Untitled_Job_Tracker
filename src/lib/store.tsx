@@ -106,9 +106,10 @@ interface AppContextValue extends AppState {
   swipeDiscoverJob: (jobId: string, action: "save" | "pass") => void;
   undoDiscoverSwipe: () => void;
   canUndoDiscover: boolean;
-  refreshDiscoverJobs: () => void;
+  refreshDiscoverJobs: (options?: DiscoverRefreshOptions) => Promise<void>;
   discoverRefreshKey: number;
   isRefreshingDiscover: boolean;
+  discoverBootstrapped: boolean;
   addApplication: (job: Omit<JobApplication, "id">) => Promise<void>;
   updateApplicationStatus: (
     id: string,
@@ -148,6 +149,16 @@ const defaultIntegrations: IntegrationConnection[] = [
 const AppContext = createContext<AppContextValue | null>(null);
 const STORAGE_KEY = "job-tracker-state";
 const ONBOARDING_STORAGE_KEY = "job-tracker-onboarding-complete";
+
+export type DiscoverRefreshOptions = {
+  remountDeck?: boolean;
+  resetProgress?: boolean;
+};
+
+let discoverBootstrapFlight: {
+  key: string;
+  promise: Promise<void>;
+} | null = null;
 
 function readOnboardingComplete() {
   if (typeof window === "undefined") return false;
@@ -287,6 +298,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [passedDiscoverIds, setPassedDiscoverIds] = useState<string[]>([]);
   const [discoverRefreshKey, setDiscoverRefreshKey] = useState(0);
   const [isRefreshingDiscover, setIsRefreshingDiscover] = useState(false);
+  const [discoverBootstrapped, setDiscoverBootstrapped] = useState(false);
   const [integrations, setIntegrations] = useState<IntegrationConnection[]>(defaultIntegrations);
   const [integrationBusy, setIntegrationBusy] = useState<IntegrationProvider | null>(null);
   const [chartView, setChartView] = useState<ChartView>("donut");
@@ -658,13 +670,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLastDiscoverSwipe(null);
   }, [databaseMode, lastDiscoverSwipe, user]);
 
-  const refreshDiscoverJobs = useCallback(() => {
-    setIsRefreshingDiscover(true);
-    setSavedDiscoverIds([]);
-    setPassedDiscoverIds([]);
-    setLastDiscoverSwipe(null);
+  const refreshDiscoverJobs = useCallback((options?: DiscoverRefreshOptions) => {
+    const remountDeck = options?.remountDeck ?? true;
+    const resetProgress = options?.resetProgress ?? true;
 
-    void searchJobsApi({
+    setIsRefreshingDiscover(true);
+    if (resetProgress) {
+      setSavedDiscoverIds([]);
+      setPassedDiscoverIds([]);
+      setLastDiscoverSwipe(null);
+    }
+
+    return searchJobsApi({
       location: profile.location,
       query: profile.rolePreference,
       radius: 25,
@@ -675,22 +692,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
           result.jobs.length > 0 ? shuffleDiscoverJobs(result.jobs) : resetDiscoverDeck();
         setDiscoverJobs(jobs.length > 0 ? jobs : resetDiscoverDeck());
         if (result.geocoded) {
-          setProfile((prev) => ({
-            ...prev,
-            latitude: result.geocoded!.latitude,
-            longitude: result.geocoded!.longitude,
-          }));
+          setProfile((prev) => {
+            if (
+              prev.latitude === result.geocoded!.latitude &&
+              prev.longitude === result.geocoded!.longitude
+            ) {
+              return prev;
+            }
+            return {
+              ...prev,
+              latitude: result.geocoded!.latitude,
+              longitude: result.geocoded!.longitude,
+            };
+          });
         }
-        setDiscoverRefreshKey((key) => key + 1);
+        if (remountDeck) {
+          setDiscoverRefreshKey((key) => key + 1);
+        }
       })
       .catch(() => {
         setDiscoverJobs(resetDiscoverDeck());
-        setDiscoverRefreshKey((key) => key + 1);
+        if (remountDeck) {
+          setDiscoverRefreshKey((key) => key + 1);
+        }
       })
       .finally(() => {
         window.setTimeout(() => setIsRefreshingDiscover(false), 500);
       });
   }, [profile.location, profile.rolePreference, profile.openToRemote]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    if (!profile.location.trim()) {
+      setDiscoverBootstrapped(true);
+      return;
+    }
+
+    const searchKey = [
+      profile.location,
+      profile.rolePreference,
+      profile.openToRemote ? "1" : "0",
+    ].join("|");
+
+    if (discoverBootstrapFlight?.key !== searchKey) {
+      setDiscoverBootstrapped(false);
+      discoverBootstrapFlight = {
+        key: searchKey,
+        promise: refreshDiscoverJobs({ remountDeck: false, resetProgress: false }),
+      };
+    }
+
+    void discoverBootstrapFlight.promise.finally(() => {
+      if (discoverBootstrapFlight?.key === searchKey) {
+        setDiscoverBootstrapped(true);
+      }
+    });
+  }, [
+    hydrated,
+    profile.location,
+    profile.rolePreference,
+    profile.openToRemote,
+    refreshDiscoverJobs,
+  ]);
 
   const addApplication = useCallback(
     async (job: Omit<JobApplication, "id">) => {
@@ -917,6 +981,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshDiscoverJobs,
     discoverRefreshKey,
     isRefreshingDiscover,
+    discoverBootstrapped,
     addApplication,
     updateApplicationStatus,
     updateApplicationNotes,

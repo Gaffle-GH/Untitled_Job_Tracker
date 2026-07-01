@@ -20,7 +20,7 @@ export function DiscoverRefreshButton({
     <Button
       type="button"
       variant={variant}
-      onClick={refreshDiscoverJobs}
+      onClick={() => void refreshDiscoverJobs()}
       disabled={isRefreshingDiscover}
       className={clsx("gap-2", className)}
     >
